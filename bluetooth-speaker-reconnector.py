@@ -26,6 +26,10 @@ def run_command(command, timeout=10):
 
 
 def _get_devices(duration):
+    print(f"[{time.strftime('%H:%M:%S')}] Unblocking bluetooth adapter")
+    run_command("rfkill unblock bluetooth")
+    time.sleep(1)
+    
     print(f"[{time.strftime('%H:%M:%S')}] Powering off/on bluetooth adapter")
     run_command("bluetoothctl power off")
     time.sleep(1)
