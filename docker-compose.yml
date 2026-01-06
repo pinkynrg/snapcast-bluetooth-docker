@@ -1,6 +1,6 @@
 services:
   bluetooth-connector:
-    build: .
+    image: pinkynrg/bluetooth-speaker-reconnector:latest
     container_name: bluetooth-connector
     network_mode: host
     privileged: true
