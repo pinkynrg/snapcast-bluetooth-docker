@@ -1,0 +1,28 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Build and Push
+        id: build
+        env:
+          REGISTRY_NAME: pinkynrg
+          REPOSITORY_NAME: bluetooth-speaker-reconnector
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $REGISTRY_NAME/$REPOSITORY_NAME:$IMAGE_TAG -t $REGISTRY_NAME/$REPOSITORY_NAME:latest .
+          echo "Pushing image to Registry..."
+          docker login -u pinkynrg -p ${{ secrets.DOCKER_HUB_LOGIN_TOKEN }}
+          docker push $REGISTRY_NAME/$REPOSITORY_NAME:$IMAGE_TAG
+          docker push $REGISTRY_NAME/$REPOSITORY_NAME:latest
+          echo "::set-output name=image::$REGISTRY_NAME/$REPOSITORY_NAME:$IMAGE_TAG"
