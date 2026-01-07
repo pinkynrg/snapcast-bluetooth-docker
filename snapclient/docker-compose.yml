@@ -1,10 +1,15 @@
 services:
   snapclient:
-    container_name: snapclient
     image: pinkynrg/snapclient:latest
-    hostname: snapclient
+    container_name: snapclient
+    hostname: XXX-speaker
     network_mode: host
+    user: "1000:1000"
+    volumes:
+      - /run/user/1000/pulse:/run/user/1000/pulse
     environment:
       - TZ=Europe/Rome
+      - PULSE_SERVER=unix:/run/user/1000/pulse/native
+      - XDG_RUNTIME_DIR=/run/user/1000
     restart: always
-    command: ["snapclient", "-h", "your-snapcast-server.com", "-s", "pulse", "--hostID", "your-client-id"]
+    command: ["snapclient", "-h", "snapcast.francescomeli.com", "-s", "pulse", "--hostID", "XXX-speaker"]
