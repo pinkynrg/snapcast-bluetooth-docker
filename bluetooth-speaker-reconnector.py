@@ -62,9 +62,21 @@ def _get_devices(duration):
                 if len(parts) >= 2:
                     mac = parts[1]
                     name = parts[2] if len(parts) > 2 else "(Unknown)"
-                    devices.append((mac, name))
+                    # Only include audio devices
+                    if _is_audio_device(mac):
+                        devices.append((mac, name))
 
     return devices
+
+def _is_audio_device(mac_address):
+    returncode, stdout, stderr = run_command(f"bluetoothctl info {mac_address}")
+    if returncode != 0:
+        return False
+    
+    if 'Icon: audio-card' in stdout or 'Icon: audio-headset' in stdout:
+        return True
+    
+    return False
 
 def _play_sound():
     print(f"[{time.strftime('%H:%M:%S')}] Playing connection sound...")
