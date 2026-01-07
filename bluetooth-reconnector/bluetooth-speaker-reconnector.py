@@ -78,11 +78,6 @@ def _is_audio_device(mac_address):
     
     return False
 
-def _play_sound():
-    print(f"[{time.strftime('%H:%M:%S')}] Playing connection sound...")
-    run_command("timeout 1s speaker-test --test sine --frequency 440", timeout=1)
-    print(f"[{time.strftime('%H:%M:%S')}] ✓ Sound played")
-
 def list_bluetooth_devices(duration):
     print(f"[{time.strftime('%H:%M:%S')}] Scanning (this will take about {duration} seconds)...")
     devices = _get_devices(duration)
@@ -121,7 +116,6 @@ def connect_bluetooth(mac_address, duration):
     returncode, stdout, stderr = run_command(f"bluetoothctl connect {mac_address}", timeout=20)
     if returncode == 0:
         print(f"[{time.strftime('%H:%M:%S')}] ✓ Connection to {mac_address} successful")
-        _play_sound()
         return True
     else:
         print(f"[{time.strftime('%H:%M:%S')}] ✗ Connection to {mac_address} failed: {stdout}")
