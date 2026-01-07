@@ -8,6 +8,7 @@ import argparse
 import subprocess
 import time
 import sys
+import pexpect
 
 DEFAULT_CONNECTION_TIMEOUT = 15
 
@@ -36,7 +37,7 @@ def _get_devices(duration):
     run_command("bluetoothctl power on")
     time.sleep(2)
 
-    print(f"[{time.strftime('%H:%M:%S')}] Removing trusted devices")
+    print(f"[{time.strftime('%H:%M:%S')}] Cleaning all known devices")
     returncode, stdout, stderr = run_command("bluetoothctl devices")
     if stdout and stdout.strip():
         for line in stdout.strip().split('\n'):
@@ -46,6 +47,7 @@ def _get_devices(duration):
                     mac = parts[1]
                     run_command(f"bluetoothctl remove {mac}")
     
+    print(f"[{time.strftime('%H:%M:%S')}] Scanning for devices for {duration} seconds...")
     # Create a script that runs bluetoothctl interactively
     scan_script = f"(echo 'scan on'; sleep {duration}; echo 'scan off') | bluetoothctl > /dev/null 2>&1 &"
     subprocess.Popen(scan_script, shell=True)
@@ -94,7 +96,7 @@ def list_bluetooth_devices(duration):
 def connect_bluetooth(mac_address, duration):
     returncode, stdout, stderr = run_command(f"bluetoothctl info {mac_address}")
     if "Connected: yes" in stdout:
-        print(f"[{time.strftime('%H:%M:%S')}] ✓ {mac_address} is connection")
+        print(f"[{time.strftime('%H:%M:%S')}] ✓ {mac_address} is connected")
         return True
     else:
         print(f"[{time.strftime('%H:%M:%S')}] ✗ {mac_address} is not connected")
@@ -106,11 +108,62 @@ def connect_bluetooth(mac_address, duration):
         print(f"[{time.strftime('%H:%M:%S')}] ✗ {mac_address} not found")
         return False
     
-    returncode, stdout, stderr = run_command(f"bluetoothctl pair {mac_address}", timeout=20)
-    if returncode == 0:
-        print(f"[{time.strftime('%H:%M:%S')}] ✓ Pairing with {mac_address} successful")
-    else:
-        print(f"[{time.strftime('%H:%M:%S')}] ✗ Pairing with {mac_address} failed: {stdout}")
+    # Use pexpect with interactive bluetoothctl session to handle passkey confirmation
+    print(f"[{time.strftime('%H:%M:%S')}] Pairing with {mac_address}...")
+    try:
+        # Start interactive bluetoothctl session
+        child = pexpect.spawn('bluetoothctl', timeout=30, encoding='utf-8')
+        child.expect([r'\[bluetooth\]>', r'\[bluetoothctl\]>'], timeout=5)
+        
+        # Send pair command
+        child.sendline(f'pair {mac_address}')
+        
+        while True:
+            index = child.expect([
+                r'Request confirmation',  # Confirmation request
+                r'Confirm passkey (\d+)',   # Passkey confirmation with number
+                r'\(yes/no\):',           # The actual prompt
+                r'Pairing successful',
+                r'Failed to pair',
+                r'not available',
+                pexpect.TIMEOUT
+            ], timeout=20)
+            
+            if index == 0:  # Confirmation request detected
+                print(f"[{time.strftime('%H:%M:%S')}] Passkey confirmation requested")
+                # Continue to wait for the yes/no prompt
+                continue
+            elif index == 1:  # Passkey confirmation with number
+                passkey = child.match.group(1)
+                print(f"[{time.strftime('%H:%M:%S')}] Passkey: {passkey}")
+                # Continue to wait for the yes/no prompt
+                continue
+            elif index == 2:  # yes/no prompt
+                print(f"[{time.strftime('%H:%M:%S')}] Auto-confirming passkey")
+                child.sendline('yes')
+            elif index == 3:  # Pairing successful
+                print(f"[{time.strftime('%H:%M:%S')}] ✓ Pairing with {mac_address} successful")
+                break
+            elif index == 4 or index == 5:  # Failed to pair or not available
+                print(f"[{time.strftime('%H:%M:%S')}] ✗ Pairing with {mac_address} failed")
+                child.sendline('quit')
+                child.close()
+                return False
+            elif index == 6:  # Timeout
+                output = child.before if child.before else ""
+                if 'Pairing successful' in output:
+                    print(f"[{time.strftime('%H:%M:%S')}] ✓ Pairing with {mac_address} successful")
+                    break
+                else:
+                    print(f"[{time.strftime('%H:%M:%S')}] ✗ Pairing with {mac_address} timed out")
+                    child.sendline('quit')
+                    child.close()
+                    return False
+        
+        child.sendline('quit')
+        child.close()
+    except Exception as e:
+        print(f"[{time.strftime('%H:%M:%S')}] ✗ Pairing error: {e}")
         return False
     
     returncode, stdout, stderr = run_command(f"bluetoothctl connect {mac_address}", timeout=20)
