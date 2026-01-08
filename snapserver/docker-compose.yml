@@ -10,5 +10,7 @@ services:
       - DEVICE_NAME=Snapcast
       - CACHE=/data
     volumes:
-      - /mnt/data/snapserver:/data
+      - /mnt/data/snapserver/cache:/data
+      - /mnt/data/snapserver/server.json:/root/.config/snapserver/server.json
+      - /mnt/data/snapserver/snapserver.conf:/etc/snapserver.conf
     restart: always
