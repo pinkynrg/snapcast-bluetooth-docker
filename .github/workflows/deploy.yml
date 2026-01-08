@@ -42,6 +42,8 @@ jobs:
           tags: |
             ${{ env.REGISTRY_NAME }}/${{ env.REPOSITORY_NAME }}:${{ env.IMAGE_TAG }}
             ${{ env.REGISTRY_NAME }}/${{ env.REPOSITORY_NAME }}:latest
+          cache-from: type=registry,ref=${{ env.REGISTRY_NAME }}/${{ env.REPOSITORY_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY_NAME }}/${{ env.REPOSITORY_NAME }}:buildcache,mode=max
 
   build-snapserver:
     name: Build Snapserver
@@ -72,11 +74,13 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./snapserver
-          platforms: ${{ env.PLATFORMS }}
+          platforms: linux/amd64
           push: true
           tags: |
             ${{ env.REGISTRY_NAME }}/${{ env.REPOSITORY_NAME }}:${{ env.IMAGE_TAG }}
             ${{ env.REGISTRY_NAME }}/${{ env.REPOSITORY_NAME }}:latest
+          cache-from: type=registry,ref=${{ env.REGISTRY_NAME }}/${{ env.REPOSITORY_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY_NAME }}/${{ env.REPOSITORY_NAME }}:buildcache,mode=max
 
   build-snapclient:
     name: Build Snapclient
@@ -112,3 +116,5 @@ jobs:
           tags: |
             ${{ env.REGISTRY_NAME }}/${{ env.REPOSITORY_NAME }}:${{ env.IMAGE_TAG }}
             ${{ env.REGISTRY_NAME }}/${{ env.REPOSITORY_NAME }}:latest
+          cache-from: type=registry,ref=${{ env.REGISTRY_NAME }}/${{ env.REPOSITORY_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY_NAME }}/${{ env.REPOSITORY_NAME }}:buildcache,mode=max
