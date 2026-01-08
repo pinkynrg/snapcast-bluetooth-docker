@@ -1,14 +1,24 @@
-# Bluetooth Speaker Reconnector
+# Dockerized Snapcast with Bluetooth Speaker Auto-Reconnect
 
-Automatic Bluetooth speaker connection monitor and Snapcast client for Raspberry Pi.
+Multi-room audio streaming solution with Snapcast server/client and automatic Bluetooth speaker connection management, fully containerized for Raspberry Pi and x86 systems.
+
+## Overview
+
+This project provides a complete Dockerized Snapcast setup with automatic Bluetooth reconnection:
+
+- **Snapcast Server**: Streams audio from Spotify (via librespot) to multiple clients
+- **Snapcast Client**: Receives audio and plays through Bluetooth speakers
+- **Bluetooth Reconnector**: Automatically maintains connection to Bluetooth audio devices
+- Multi-architecture support (AMD64, ARM64)
+- Fully containerized with Docker
 
 ## Features
 
-- **Bluetooth Reconnector**: Monitors and maintains connection to Bluetooth audio devices
-- **Snapcast Client**: Streams audio from Snapcast server through connected Bluetooth speaker
-- Fully containerized with Docker
-- Automatic reconnection on connection loss
-- Audio device filtering (only shows/connects to audio devices)
+- **Automatic Bluetooth Reconnection**: Monitors and maintains connection to Bluetooth audio devices
+- **Multi-Room Audio**: Synchronized audio streaming across multiple Snapcast clients
+- **Spotify Integration**: Built-in librespot support for Spotify Connect
+- **Easy Deployment**: Docker Compose for simple service management
+- **Audio Device Filtering**: Only shows and connects to audio-capable Bluetooth devices
 
 ## Prerequisites
 
@@ -21,13 +31,13 @@ Configure a static IP address for reliable network access:
 nmcli connection show
 
 # Configure static IP with router-provided DNS (replace values with your network settings)
-sudo nmcli connection modify "netplan-wlan0-francescos-house-5g" \
+sudo nmcli connection modify "the-interface" \
   ipv4.addresses 192.168.1.105/24 \
   ipv4.gateway 192.168.1.254 \
   ipv4.dns "192.168.1.100 1.1.1.1" \
   ipv4.method manual
 
-sudo nmcli connection up "netplan-wlan0-francescos-house-5g"
+sudo nmcli connection up "the-interface"
 ```
 
 ### PipeWire (Audio System)
@@ -68,48 +78,101 @@ docker run -d \
 
 ## Usage
 
-### Bluetooth Reconnector
+### Find Your Bluetooth Speaker MAC Address
 
-The reconnector container monitors and maintains connection to a Bluetooth speaker.
+Before configuring services, identify your Bluetooth speaker's MAC address:
 
 ```bash
-# List available Bluetooth audio devices
 cd bluetooth-reconnector
 docker-compose run --rm bluetooth-reconnector python3 /app/bluetooth-speaker-reconnector.py --list --timeout 15
-
-# Run with docker-compose (monitoring mode)
-docker-compose up -d
 ```
 
-Configure the MAC address in `bluetooth-reconnector/docker-compose.yml`:
-```yaml
-environment:
-  - BT_MAC=60:AB:D2:08:0C:32  # Replace with your speaker's MAC
-```
+This will scan and display all available Bluetooth audio devices with their MAC addresses.
+
+### Snapcast Server
+
+The Snapcast server streams audio from Spotify (via librespot) to connected clients.
+
+**Setup:**
+1. Navigate to the snapserver directory: `cd snapserver`
+2. Configure environment variables in `docker-compose.yml`:
+   ```yaml
+   environment:
+     - DEVICE_NAME=Snapcast        # Spotify device name
+     - CACHE=/data                 # Cache directory
+   ```
+3. Start the server: `docker-compose up -d`
+
+The server will be accessible on ports 1704 (client connections) and 1705 (control).
 
 ### Snapcast Client
 
-The snapclient container plays audio from your Snapcast server through the connected Bluetooth speaker.
+The Snapcast client receives audio from the server and plays through the connected Bluetooth speaker.
 
-```bash
-cd snapclient
-docker-compose up --build
-```
+**Setup:**
+1. Navigate to the snapclient directory: `cd snapclient`
+2. Configure the server and host ID in `docker-compose.yml`:
+   ```yaml
+   command: ["snapclient", "-h", "your-snapserver.com", "-s", "pulse", "--hostID", "your-client-id"]
+   ```
+3. Start the client: `docker-compose up -d`
 
-Configure the Snapcast server in `snapclient/docker-compose.yml`:
-```yaml
-command: ["snapclient", "-h", "snapcast.francescomeli.com", "-s", "pulse", "--hostID", "hallway-main"]
-```
+### Bluetooth Reconnector
+
+The Bluetooth reconnector monitors and maintains connection to your Bluetooth speaker.
+
+**Setup:**
+1. Navigate to the bluetooth-reconnector directory: `cd bluetooth-reconnector`
+2. Configure the MAC address in `docker-compose.yml`:
+   ```yaml
+   environment:
+     - BT_MAC=60:AB:D2:08:0C:32  # Replace with your speaker's MAC address
+     - BT_CHECK_INTERVAL=30      # Connection check interval (seconds)
+     - BT_TIMEOUT=15             # Bluetooth scan timeout (seconds)
+   ```
+3. Start the reconnector: `docker-compose up -d`
 
 ## Architecture
 
-1. **Bluetooth Reconnector** pairs and connects to the Bluetooth speaker using `bluetoothctl`
-2. **PipeWire** (on host) detects the paired device and creates an audio sink
-3. **Snapcast Client** plays audio through PipeWire → Bluetooth speaker
+The system consists of three main components:
 
-Both containers use `network_mode: host` to access the host's PipeWire/Bluetooth stack.
+1. **Snapcast Server**
+   - Runs librespot for Spotify Connect integration
+   - Streams audio to connected Snapcast clients
+   - Built from Debian with custom librespot compilation
+
+2. **Snapcast Client**
+   - Receives audio stream from Snapcast server
+   - Outputs audio through PipeWire/PulseAudio to Bluetooth speaker
+   - Uses host network mode to access PipeWire audio system
+
+3. **Bluetooth Reconnector**
+   - Monitors Bluetooth connection status
+   - Automatically reconnects if connection is lost
+   - Uses `bluetoothctl` for device management
+
+**Audio Flow:**
+```
+Spotify → Librespot → Snapserver → Network → Snapclient → PipeWire → Bluetooth Speaker
+                                                              ↑
+                                                    Bluetooth Reconnector
+                                                    (maintains connection)
+```
 
 ## Environment Variables
+
+### Snapcast Server
+
+- `DEVICE_NAME`: Spotify Connect device name (default: "Snapcast")
+- `CACHE`: Directory for librespot cache (default: "/data")
+
+### Snapcast Client
+
+Configured via command-line arguments in docker-compose.yml:
+- `-h`: Snapcast server hostname or IP
+- `-s`: Audio backend (pulse, alsa, etc.)
+- `--hostID`: Unique identifier for this client
+- `--buffer`: Buffer size in milliseconds (optional, e.g., 2000 for higher stability)
 
 ### Bluetooth Reconnector
 
@@ -119,13 +182,40 @@ Both containers use `network_mode: host` to access the host's PipeWire/Bluetooth
 
 ## Building Images
 
-The project includes GitHub Actions workflow to automatically build and push multi-platform Docker images (AMD64 and ARM64).
+The project includes a GitHub Actions workflow that automatically builds and pushes multi-platform Docker images (AMD64 and ARM64) on every push to the main branch.
 
-Manual build:
+Images are published to Docker Hub:
+- `pinkynrg/librespot-snapserver:latest`
+- `pinkynrg/snapclient:latest`
+- `pinkynrg/bluetooth-speaker-reconnector:latest`
+
+
+## Troubleshooting
+
+### Audio Crackling or Dropouts
+
+If you experience audio glitches on all speakers simultaneously:
+1. Increase Snapclient buffer: Add `--buffer 2000` to the command in docker-compose.yml
+2. Check network quality between server and clients
+3. Monitor CPU usage on the Snapserver host
+
+### Bluetooth Connection Issues
+
+If Bluetooth frequently disconnects:
+1. Verify the MAC address is correct using `--list`
+2. Reduce `BT_CHECK_INTERVAL` for more frequent monitoring
+3. Check Bluetooth signal strength (move speaker closer)
+4. Ensure PipeWire is running: `systemctl --user status pipewire`
+
+### Container Not Starting
+
+Check logs for specific errors:
 ```bash
-cd bluetooth-reconnector
-docker build -t pinkynrg/bluetooth-speaker-reconnector:latest .
-
-cd ../snapclient
-docker build -t pinkynrg/snapclient:latest .
+docker-compose logs
 ```
+
+Ensure required permissions for Bluetooth access (containers use host network mode).
+
+## License
+
+MIT
