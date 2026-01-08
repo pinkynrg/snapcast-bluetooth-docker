@@ -69,7 +69,7 @@ jobs:
         id: build-snapserver
         env:
           REGISTRY_NAME: pinkynrg
-          REPOSITORY_NAME: librespot-snapserver
+          REPOSITORY_NAME: snapserver
           IMAGE_TAG: ${{ github.sha }}
         uses: docker/build-push-action@v4
         with:
