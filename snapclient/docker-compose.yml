@@ -4,7 +4,6 @@ services:
     container_name: snapclient
     hostname: XXX-speaker
     network_mode: host
-    user: "1000:1000"
     volumes:
       - /run/user/1000/pulse:/run/user/1000/pulse
     environment:
