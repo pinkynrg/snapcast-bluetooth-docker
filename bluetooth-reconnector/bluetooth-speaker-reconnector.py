@@ -8,9 +8,12 @@ import argparse
 import subprocess
 import time
 import sys
+import os
 import pexpect
 
 DEFAULT_CONNECTION_TIMEOUT = 15
+DEFAULT_CHECK_INTERVAL = 30
+DEFAULT_KEEPALIVE_VOLUME = 1000  # PulseAudio volume (0-65536, default 1000 = ~1.5%)
 
 def run_command(command, timeout=10):
     try:
@@ -174,12 +177,34 @@ def connect_bluetooth(mac_address, duration):
         print(f"[{time.strftime('%H:%M:%S')}] ✗ Connection to {mac_address} failed: {stdout}")
         return False
 
+def play_keepalive_sound():
+    """Play a very brief sound through PulseAudio to keep Bluetooth alive"""
+    try:
+        # Get volume from environment variable or use default
+        volume = int(os.getenv('BT_KEEPALIVE_VOLUME', DEFAULT_KEEPALIVE_VOLUME))
+        
+        # Play a system sound at configured volume
+        cmd = f"paplay --volume={volume} /usr/share/sounds/alsa/Front_Center.wav 2>/dev/null"
+        returncode, stdout, stderr = run_command(cmd, timeout=5)
+        
+        if returncode == 0:
+            print(f"[{time.strftime('%H:%M:%S')}] ♪ Keepalive sound played (volume: {volume})")
+            return True
+        else:
+            print(f"[{time.strftime('%H:%M:%S')}] ⚠ Keepalive failed: {stderr}")
+            return False
+    except Exception as e:
+        print(f"[{time.strftime('%H:%M:%S')}] ⚠ Keepalive error: {e}")
+        return False
+
 def monitor_connection(mac_address, duration, check_interval=30):
     print(f"[{time.strftime('%H:%M:%S')}] Monitoring {mac_address} (check every {check_interval}s)")
     
     try:
         while True:
-            connect_bluetooth(mac_address, duration)
+            is_connected = connect_bluetooth(mac_address, duration)
+            if is_connected:
+                play_keepalive_sound()
             time.sleep(check_interval)
             
     except KeyboardInterrupt:
@@ -220,9 +245,9 @@ def main():
     parser.add_argument(
         "--check-interval",
         type=int,
-        default=30,
+        default=DEFAULT_CHECK_INTERVAL,
         metavar="SECONDS",
-        help="Connection check interval in seconds when monitoring (default: 30)"
+        help=f"Connection check interval in seconds when monitoring (default: {DEFAULT_CHECK_INTERVAL})"
     )
     
     args = parser.parse_args()
@@ -232,7 +257,11 @@ def main():
         return
     
     if args.monitor:
-        monitor_connection(args.mac, duration=args.timeout, check_interval=args.check_interval)
+        monitor_connection(
+            args.mac, 
+            duration=args.timeout, 
+            check_interval=args.check_interval
+        )
     else:
         connect_bluetooth(args.mac, duration=args.timeout)
 

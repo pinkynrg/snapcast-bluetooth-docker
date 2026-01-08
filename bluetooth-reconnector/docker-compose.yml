@@ -7,10 +7,13 @@ services:
     volumes:
       - /var/run/dbus:/var/run/dbus
       - /run/dbus:/run/dbus
+      - /run/user/1000/pulse:/run/user/1000/pulse
     devices:
       - /dev/snd:/dev/snd
     environment:
       - BT_MAC=XX:XX:XX:XX:XX:XX
       - BT_CHECK_INTERVAL=15
       - BT_TIMEOUT=10
+      - PULSE_SERVER=unix:/run/user/1000/pulse/native
+      - BT_KEEPALIVE_VOLUME=1000
     restart: always
