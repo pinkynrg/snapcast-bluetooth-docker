@@ -32,12 +32,21 @@ nmcli connection show
 
 # Configure static IP with router-provided DNS (replace values with your network settings)
 sudo nmcli connection modify "the-interface" \
-  ipv4.addresses 192.168.1.105/24 \
+  ipv4.addresses 192.168.1.123/24 \
   ipv4.gateway 192.168.1.254 \
   ipv4.dns "192.168.1.100 1.1.1.1" \
   ipv4.method manual
 
 sudo nmcli connection up "the-interface"
+```
+
+**Disable a connection (e.g., WiFi):**
+```bash
+# List all connections
+nmcli connection show
+
+# Disable/bring down a connection
+sudo nmcli connection down "the-interface"
 ```
 
 ### PipeWire (Audio System)
