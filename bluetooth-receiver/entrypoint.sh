@@ -62,37 +62,42 @@ EOF
 
 echo "Bluetooth is now discoverable and accepting connections"
 
-# Create PulseAudio directories and cookie
-mkdir -p /root/.config/pulse /var/run/pulse/.config/pulse
-touch /root/.config/pulse/cookie
-chmod 700 /root/.config/pulse
-chmod 600 /root/.config/pulse/cookie
+# Create PulseAudio system configuration
+mkdir -p /etc/pulse
+
+cat > /etc/pulse/system.pa << 'EOF'
+#!/usr/bin/pulseaudio -nF
+
+# Load audio drivers
+load-module module-alsa-sink device=default
+load-module module-alsa-source device=default
+load-module module-native-protocol-unix auth-anonymous=1
+
+# Bluetooth support
+load-module module-bluetooth-policy
+load-module module-bluetooth-discover
+
+# Pipe sink for snapserver
+load-module module-pipe-sink file=/tmp/snapfifo format=s16le rate=48000 channels=2 sink_name=snapcast
+
+# Set default
+set-default-sink snapcast
+EOF
+
+cat > /etc/pulse/client.conf << 'EOF'
+autospawn = no
+daemon-binary = /bin/true
+enable-shm = false
+EOF
 
 # Start PulseAudio in system mode
-pulseaudio --system --disallow-exit --disallow-module-loading=false &
+pulseaudio --system --disallow-exit -F /etc/pulse/system.pa &
 PULSE_PID=$!
 echo "PulseAudio started (PID: $PULSE_PID)"
 
 sleep 3
 
-# Load Bluetooth modules
-export PULSE_RUNTIME_PATH=/var/run/pulse
-pactl load-module module-bluetooth-policy 2>/dev/null || echo "Warning: Could not load bluetooth-policy module"
-pactl load-module module-bluetooth-discover 2>/dev/null || echo "Warning: Could not load bluetooth-discover module"
-echo "Bluetooth audio modules loaded"
-
-# Create a pipe sink for snapserver
-pactl load-module module-pipe-sink \
-    file=/tmp/snapfifo \
-    format=s16le \
-    rate=48000 \
-    channels=2 \
-    sink_name=snapcast
-echo "Pipe sink created for snapserver"
-
-# Set as default sink so Bluetooth audio routes here
-pactl set-default-sink snapcast 2>/dev/null || echo "Warning: Could not set default sink"
-echo "Default sink set to snapcast"
+echo "Audio configuration complete"
 
 echo "====================================="
 echo "Bluetooth receiver ready!"
