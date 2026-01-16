@@ -63,36 +63,47 @@ cat > /usr/local/bin/bt-agent << 'AGENTEOF'
 set timeout -1
 log_user 0
 
-spawn bluetoothctl
-expect "*#"
-
-send "agent NoInputNoOutput\r"
-expect {
-    "Agent registered" {
-        send "default-agent\r"
-        expect "Default agent request successful"
+proc agent_loop {} {
+    spawn bluetoothctl
+    expect "*#"
+    
+    send "agent NoInputNoOutput\r"
+    expect {
+        "Agent registered" {
+            send "default-agent\r"
+            expect "Default agent request successful"
+        }
+        "Failed to register" {
+            after 5000
+            return
+        }
     }
-    "Failed to register" {
-        exit 1
+    
+    # Keep agent running and auto-accept all requests
+    while {1} {
+        expect {
+            "Confirm passkey*yes/no*" {
+                send "yes\r"
+            }
+            "Accept pairing*yes/no*" {
+                send "yes\r"
+            }
+            "Authorize service*yes/no*" {
+                send "yes\r"
+            }
+            eof {
+                break
+            }
+            timeout {
+                continue
+            }
+        }
     }
 }
 
-# Keep agent running and auto-accept all requests
 while {1} {
-    expect {
-        "Confirm passkey*yes/no*" {
-            send "yes\r"
-        }
-        "Accept pairing*yes/no*" {
-            send "yes\r"
-        }
-        "Authorize service*yes/no*" {
-            send "yes\r"
-        }
-        eof {
-            break
-        }
-    }
+    agent_loop
+    after 2000
 }
 AGENTEOF
 
@@ -106,9 +117,10 @@ sleep 2
 
 echo "Bluetooth is now discoverable and auto-accepting connections"
 
-# Kill any existing PulseAudio instances
-killall pulseaudio 2>/dev/null || true
-rm -f /var/run/pulse/native /var/run/pulse/pid
+# Kill any existing PulseAudio instances and clean up
+pkill -9 pulseaudio 2>/dev/null || true
+rm -rf /var/run/pulse /root/.config/pulse
+mkdir -p /var/run/pulse
 
 # Create PulseAudio system configuration
 mkdir -p /etc/pulse
@@ -130,10 +142,10 @@ load-module module-pipe-sink file=/tmp/snapfifo format=s16le rate=48000 channels
 set-default-sink snapcast
 EOF
 
-sleep 1
+sleep 2
 
 # Start PulseAudio in system mode
-pulseaudio --system --disallow-exit -F /etc/pulse/system.pa &
+pulseaudio --system --disallow-exit --log-level=error -F /etc/pulse/system.pa &
 PULSE_PID=$!
 echo "PulseAudio started (PID: $PULSE_PID)"
 
