@@ -6,10 +6,7 @@ echo "Starting Bluetooth receiver..."
 # Check if Bluetooth hardware is available
 if ! ls /sys/class/bluetooth/hci* >/dev/null 2>&1; then
     echo "ERROR: No Bluetooth adapter found!"
-    echo "Make sure:"
-    echo "  1. Bluetooth hardware is present"
-    echo "  2. Host Bluetooth service is stopped: sudo systemctl stop bluetooth.service"
-    echo "  3. Container is running with privileged: true"
+    echo "Make sure host Bluetooth service is stopped: sudo systemctl stop bluetooth.service"
     exit 1
 fi
 
@@ -108,8 +105,6 @@ while {1} {
 AGENTEOF
 
 chmod +x /usr/local/bin/bt-agent
-
-# Run agent in background
 /usr/local/bin/bt-agent > /dev/null 2>&1 &
 AGENT_PID=$!
 
@@ -117,53 +112,22 @@ sleep 2
 
 echo "Bluetooth is now discoverable and auto-accepting connections"
 
-# Kill any existing PulseAudio instances aggressively
-pulseaudio --kill 2>/dev/null || true
-killall -9 pulseaudio 2>/dev/null || true
-sleep 2
-pkill -9 -f pulseaudio 2>/dev/null || true
-rm -rf /var/run/pulse /root/.config/pulse /tmp/pulse-* ~/.pulse /etc/pulse ~/.config/pulse
-sleep 1
-mkdir -p /var/run/pulse /etc/pulse
-
-# Create minimal system config with no defaults
+# Start PulseAudio with minimal config
+mkdir -p /etc/pulse
 cat > /etc/pulse/system.pa << 'EOF'
-.fail
 load-module module-native-protocol-unix auth-anonymous=1
 load-module module-pipe-sink file=/tmp/snapfifo format=s16le rate=44100 channels=2 sink_name=snapcast
 load-module module-bluetooth-policy
 load-module module-bluetooth-discover
 load-module module-switch-on-connect
-.nofail
 set-default-sink snapcast
 EOF
 
-# Disable client autospawn
-cat > /etc/pulse/client.conf << 'EOF'
-autospawn = no
-daemon-binary = /bin/true
-enable-shm = no
-EOF
-
-# Prevent D-Bus from auto-starting PulseAudio
-rm -f /usr/share/dbus-1/services/pulseaudio.service 2>/dev/null || true
-
-sleep 2
-
-# Start PulseAudio in system mode with our config
-pulseaudio --system --disallow-exit --log-level=info -F /etc/pulse/system.pa &
+pulseaudio --system --disallow-exit --log-level=error -F /etc/pulse/system.pa &
 PULSE_PID=$!
 echo "PulseAudio started (PID: $PULSE_PID)"
 
-sleep 5
-
-# Verify it's running
-ps aux | grep pulseaudio || echo "WARNING: PulseAudio may not be running"
-
-# Add a null source that continuously generates silence
-# This keeps the FIFO "warm" so snapserver never sees no data
-pactl load-module module-null-sink sink_name=silence rate=44100
-pactl load-module module-loopback source=silence.monitor sink=snapcast latency_msec=1
+sleep 3
 
 echo "Audio configuration complete"
 
@@ -184,7 +148,7 @@ while true; do
     
     if ! kill -0 $PULSE_PID 2>/dev/null; then
         echo "ERROR: PulseAudio died, restarting..."
-        pulseaudio --system --disallow-exit -F /etc/pulse/system.pa &
+        pulseaudio --system --disallow-exit --log-level=error -F /etc/pulse/system.pa &
         PULSE_PID=$!
     fi
     
