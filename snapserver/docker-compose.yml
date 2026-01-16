@@ -8,9 +8,8 @@ services:
       - 1780:1780
     environment:
       - DEVICE_NAME=Snapcast
-      - CACHE=/data
     volumes:
-      - /mnt/data/snapserver/cache:/data
-      - /mnt/data/snapserver/server.json:/root/.config/snapserver/server.json
-      - /mnt/data/snapserver/snapserver.conf:/etc/snapserver.conf
+      - /mnt/data/snapserver/cache:/data # this is needed to keep the Spotify cached credentials 
+      - /mnt/data/snapserver/server.json:/root/.config/snapserver/server.json # these are the editable configurations from the ui
+      - /mnt/data/snapserver/snapserver.conf:/etc/snapserver.conf # these are the startup configurations for snapserver
     restart: always

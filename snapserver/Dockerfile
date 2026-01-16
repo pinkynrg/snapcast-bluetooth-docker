@@ -57,16 +57,10 @@ RUN arch=$(dpkg --print-architecture) && \
     apt-get install -y --no-install-recommends /tmp/snapserver.deb && \
     rm -rf /tmp/snapserver.deb /var/lib/apt/lists/*
 
-# Environment variables
-ENV DEVICE_NAME=Snapcast
-ENV CACHE=/data
+# Configure snapserver with librespot source
+RUN sed -i 's,^source = .*,source = librespot:///librespot?name=Spotify\&devicename=Snapcast\&bitrate=320\&volume=75\&cache=/data,' /etc/snapserver.conf
 
 # Expose snapserver ports
 EXPOSE 1704/tcp 1705/tcp
 
-# Start snapserver with librespot source
-CMD ["/bin/bash", "-c", "\
-    cp /etc/snapserver.conf /tmp/snapserver.conf && \
-    sed -i \"s,^source = .*,source = librespot:///librespot?name=Spotify\\&devicename=$DEVICE_NAME\\&bitrate=320\\&volume=75\\&cache=$CACHE,\" /tmp/snapserver.conf && \
-    exec snapserver -c /tmp/snapserver.conf\
-"]
+CMD ["snapserver"]
