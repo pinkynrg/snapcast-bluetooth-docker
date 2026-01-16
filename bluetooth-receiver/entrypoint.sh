@@ -117,10 +117,13 @@ sleep 2
 
 echo "Bluetooth is now discoverable and auto-accepting connections"
 
-# Kill any existing PulseAudio instances and clean up
+# Kill any existing PulseAudio instances aggressively
+pulseaudio --kill 2>/dev/null || true
 killall -9 pulseaudio 2>/dev/null || true
+sleep 2
+pkill -9 -f pulseaudio 2>/dev/null || true
+rm -rf /var/run/pulse /root/.config/pulse /tmp/pulse-* ~/.pulse /etc/pulse ~/.config/pulse
 sleep 1
-rm -rf /var/run/pulse /root/.config/pulse /tmp/pulse-* ~/.pulse /etc/pulse
 mkdir -p /var/run/pulse /etc/pulse
 
 # Create minimal system config with no defaults
@@ -141,12 +144,20 @@ daemon-binary = /bin/true
 enable-shm = no
 EOF
 
+# Prevent D-Bus from auto-starting PulseAudio
+rm -f /usr/share/dbus-1/services/pulseaudio.service 2>/dev/null || true
+
+sleep 2
+
 # Start PulseAudio in system mode with our config
-pulseaudio --system --disallow-exit --log-level=error -F /etc/pulse/system.pa &
+pulseaudio --system --disallow-exit --log-level=info -F /etc/pulse/system.pa &
 PULSE_PID=$!
 echo "PulseAudio started (PID: $PULSE_PID)"
 
 sleep 5
+
+# Verify it's running
+ps aux | grep pulseaudio || echo "WARNING: PulseAudio may not be running"
 
 echo "Audio configuration complete"
 
