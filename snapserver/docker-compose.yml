@@ -12,4 +12,5 @@ services:
       - /mnt/data/snapserver/cache:/data # this is needed to keep the Spotify cached credentials 
       - /mnt/data/snapserver/server.json:/root/.config/snapserver/server.json # these are the editable configurations from the ui
       - /mnt/data/snapserver/snapserver.conf:/etc/snapserver.conf # these are the startup configurations for snapserver
+      - /tmp:/tmp # needed to access the Bluetooth FIFO
     restart: always

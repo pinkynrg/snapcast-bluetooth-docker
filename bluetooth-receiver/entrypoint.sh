@@ -130,9 +130,10 @@ mkdir -p /var/run/pulse /etc/pulse
 cat > /etc/pulse/system.pa << 'EOF'
 .fail
 load-module module-native-protocol-unix auth-anonymous=1
+load-module module-pipe-sink file=/tmp/snapfifo format=s16le rate=44100 channels=2 sink_name=snapcast
 load-module module-bluetooth-policy
 load-module module-bluetooth-discover
-load-module module-pipe-sink file=/tmp/snapfifo format=s16le rate=44100 channels=2 sink_name=snapcast
+load-module module-switch-on-connect
 .nofail
 set-default-sink snapcast
 EOF
@@ -158,6 +159,11 @@ sleep 5
 
 # Verify it's running
 ps aux | grep pulseaudio || echo "WARNING: PulseAudio may not be running"
+
+# Add a null source that continuously generates silence
+# This keeps the FIFO "warm" so snapserver never sees no data
+pactl load-module module-null-sink sink_name=silence rate=44100
+pactl load-module module-loopback source=silence.monitor sink=snapcast latency_msec=1
 
 echo "Audio configuration complete"
 
