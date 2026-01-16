@@ -42,6 +42,23 @@ echo "Bluetooth daemon started (PID: $BLUETOOTHD_PID)"
 
 sleep 3
 
+# Wait for bluetooth controller to be ready
+TIMEOUT=30
+ELAPSED=0
+while ! bluetoothctl show >/dev/null 2>&1; do
+    if [ $ELAPSED -ge $TIMEOUT ]; then
+        echo "ERROR: Bluetooth controller not available after ${TIMEOUT}s"
+        echo "Make sure host Bluetooth service is stopped:"
+        echo "  sudo systemctl stop bluetooth.service"
+        echo "  sudo systemctl disable bluetooth.service"
+        exit 1
+    fi
+    sleep 1
+    ELAPSED=$((ELAPSED + 1))
+done
+
+echo "Bluetooth controller ready"
+
 # Configure Bluetooth to be discoverable and pairable
 bluetoothctl power on
 bluetoothctl discoverable on
@@ -122,10 +139,12 @@ sleep 2
 mkdir -p /etc/pulse
 cat > /etc/pulse/system.pa << 'EOF'
 load-module module-native-protocol-unix auth-anonymous=1
-load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source=auto record=true port=4953 listen=0.0.0.0
+load-module module-null-sink sink_name=tcp_out rate=44100 channels=2
+load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source=tcp_out.monitor port=4953 listen=0.0.0.0 record=true
 load-module module-bluetooth-policy
 load-module module-bluetooth-discover
 load-module module-switch-on-connect
+set-default-sink tcp_out
 EOF
 
 pulseaudio --system --disallow-exit --log-level=error -F /etc/pulse/system.pa &
