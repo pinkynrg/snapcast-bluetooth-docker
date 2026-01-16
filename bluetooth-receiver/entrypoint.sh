@@ -137,28 +137,19 @@ load-module module-bluetooth-discover
 
 # Pipe sink for snapserver - match Bluetooth's 44100Hz rate
 load-module module-pipe-sink file=/tmp/snapfifo format=s16le rate=44100 channels=2 sink_name=snapcast
+
+# Set default
+set-default-sink snapcast
+EOF
+
+sleep 2
+
+# Start PulseAudio in system mode
+pulseaudio --system --disallow-exit --log-level=error -F /etc/pulse/system.pa &
+PULSE_PID=$!
 echo "PulseAudio started (PID: $PULSE_PID)"
 
-sleep 5
-
-# Auto-route any Bluetooth sources to snapcast sink via script
-cat > /usr/local/bin/bt-audio-router << 'ROUTEREOF'
-#!/bin/bash
-while true; do
-    # Find all Bluetooth A2DP sources
-    for source in $(pactl list sources short | grep bluez | grep a2dp_source | awk '{print $2}'); do
-        # Check if loopback already exists for this source
-        if ! pactl list modules | grep -q "source=$source.*sink=snapcast"; then
-            echo "Routing Bluetooth source $source to snapcast sink"
-            pactl load-module module-loopback source="$source" sink=snapcast latency_msec=1 || true
-        fi
-    done
-    sleep 2
-done
-ROUTEREOF
-
-chmod +x /usr/local/bin/bt-audio-router
-/usr/local/bin/bt-audio-router > /dev/null 2>&1 &
+sleep 3
 
 echo "Audio configuration complete"
 
