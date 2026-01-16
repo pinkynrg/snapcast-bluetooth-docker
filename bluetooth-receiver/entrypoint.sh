@@ -56,25 +56,55 @@ bluetoothctl power on
 bluetoothctl discoverable on
 bluetoothctl pairable on
 
-# Use a simple pairing agent script
-cat > /tmp/bt-agent << 'BTEOF'
+# Create auto-accept agent script
+cat > /usr/local/bin/bt-agent << 'AGENTEOF'
 #!/usr/bin/expect -f
+
 set timeout -1
+log_user 0
+
 spawn bluetoothctl
+expect "*#"
+
 send "agent NoInputNoOutput\r"
-expect "Agent registered"
-send "default-agent\r"
-expect eof
-BTEOF
+expect {
+    "Agent registered" {
+        send "default-agent\r"
+        expect "Default agent request successful"
+    }
+    "Failed to register" {
+        exit 1
+    }
+}
 
-# Install expect if needed and run agent
-if ! command -v expect &> /dev/null; then
-    apt-get update && apt-get install -y expect
-fi
-chmod +x /tmp/bt-agent
-/tmp/bt-agent || echo "Agent setup attempted"
+# Keep agent running and auto-accept all requests
+while {1} {
+    expect {
+        "Confirm passkey*yes/no*" {
+            send "yes\r"
+        }
+        "Accept pairing*yes/no*" {
+            send "yes\r"
+        }
+        "Authorize service*yes/no*" {
+            send "yes\r"
+        }
+        eof {
+            break
+        }
+    }
+}
+AGENTEOF
 
-echo "Bluetooth is now discoverable and accepting connections"
+chmod +x /usr/local/bin/bt-agent
+
+# Run agent in background
+/usr/local/bin/bt-agent > /dev/null 2>&1 &
+AGENT_PID=$!
+
+sleep 2
+
+echo "Bluetooth is now discoverable and auto-accepting connections"
 
 # Kill any existing PulseAudio instances
 killall pulseaudio 2>/dev/null || true
@@ -128,8 +158,14 @@ while true; do
     
     if ! kill -0 $PULSE_PID 2>/dev/null; then
         echo "ERROR: PulseAudio died, restarting..."
-        pulseaudio --system --disallow-exit --disallow-module-loading=false &
+        pulseaudio --system --disallow-exit -F /etc/pulse/system.pa &
         PULSE_PID=$!
+    fi
+    
+    if ! kill -0 $AGENT_PID 2>/dev/null; then
+        echo "WARNING: Agent died, restarting..."
+        /usr/local/bin/bt-agent > /dev/null 2>&1 &
+        AGENT_PID=$!
     fi
     
     sleep 10
