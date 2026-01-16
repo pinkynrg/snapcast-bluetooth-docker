@@ -56,7 +56,12 @@ log_user 1
 
 proc agent_loop {} {
     spawn bluetoothctl
-    expect "*#"
+    expect {
+        "*Agent registered*" { }
+        "*#" { }
+        timeout { after 2000; return }
+    }
+    sleep 1
     
     send "agent NoInputNoOutput\r"
     expect {
@@ -109,7 +114,9 @@ echo "Bluetooth is now discoverable and auto-accepting connections"
 # Kill any existing PulseAudio instances
 pulseaudio --kill 2>/dev/null || true
 killall -9 pulseaudio 2>/dev/null || true
-sleep 1
+pkill -9 -f pulseaudio 2>/dev/null || true
+rm -rf /var/run/pulse /tmp/pulse-* 2>/dev/null || true
+sleep 2
 
 # Start PulseAudio with minimal config
 mkdir -p /etc/pulse
