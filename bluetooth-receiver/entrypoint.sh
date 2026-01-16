@@ -52,7 +52,7 @@ cat > /usr/local/bin/bt-agent << 'AGENTEOF'
 #!/usr/bin/expect -f
 
 set timeout -1
-log_user 0
+log_user 1
 
 proc agent_loop {} {
     spawn bluetoothctl
@@ -99,7 +99,7 @@ while {1} {
 AGENTEOF
 
 chmod +x /usr/local/bin/bt-agent
-/usr/local/bin/bt-agent > /dev/null 2>&1 &
+/usr/local/bin/bt-agent &
 AGENT_PID=$!
 
 sleep 2
