@@ -12,12 +12,6 @@ fi
 
 echo "Bluetooth adapter found: $(ls /sys/class/bluetooth/)"
 
-# Create FIFO if it doesn't exist
-if [ ! -p /tmp/snapfifo ]; then
-    mkfifo -m 666 /tmp/snapfifo
-    echo "Created FIFO at /tmp/snapfifo"
-fi
-
 # Configure Bluetooth for auto-pairing
 cat > /etc/bluetooth/main.conf << EOF
 [General]
@@ -116,11 +110,10 @@ echo "Bluetooth is now discoverable and auto-accepting connections"
 mkdir -p /etc/pulse
 cat > /etc/pulse/system.pa << 'EOF'
 load-module module-native-protocol-unix auth-anonymous=1
-load-module module-pipe-sink file=/tmp/snapfifo format=s16le rate=44100 channels=2 sink_name=snapcast
+load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source=auto record=true port=4953 listen=0.0.0.0
 load-module module-bluetooth-policy
 load-module module-bluetooth-discover
 load-module module-switch-on-connect
-set-default-sink snapcast
 EOF
 
 pulseaudio --system --disallow-exit --log-level=error -F /etc/pulse/system.pa &
@@ -134,6 +127,7 @@ echo "Audio configuration complete"
 echo "====================================="
 echo "Bluetooth receiver ready!"
 echo "Device name: ${DEVICE_NAME}"
+echo "Streaming to TCP port 4953"
 echo "Connect your phone/device via Bluetooth"
 echo "Audio will stream to snapserver"
 echo "====================================="
