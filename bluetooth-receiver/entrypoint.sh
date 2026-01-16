@@ -3,6 +3,18 @@ set -e
 
 echo "Starting Bluetooth receiver..."
 
+# Check if Bluetooth hardware is available
+if ! ls /sys/class/bluetooth/hci* >/dev/null 2>&1; then
+    echo "ERROR: No Bluetooth adapter found!"
+    echo "Make sure:"
+    echo "  1. Bluetooth hardware is present"
+    echo "  2. Host Bluetooth service is stopped: sudo systemctl stop bluetooth.service"
+    echo "  3. Container is running with privileged: true"
+    exit 1
+fi
+
+echo "Bluetooth adapter found: $(ls /sys/class/bluetooth/)"
+
 # Create FIFO if it doesn't exist
 if [ ! -p /tmp/snapfifo ]; then
     mkfifo -m 666 /tmp/snapfifo
@@ -50,16 +62,23 @@ EOF
 
 echo "Bluetooth is now discoverable and accepting connections"
 
+# Create PulseAudio directories and cookie
+mkdir -p /root/.config/pulse /var/run/pulse/.config/pulse
+touch /root/.config/pulse/cookie
+chmod 700 /root/.config/pulse
+chmod 600 /root/.config/pulse/cookie
+
 # Start PulseAudio in system mode
 pulseaudio --system --disallow-exit --disallow-module-loading=false &
 PULSE_PID=$!
 echo "PulseAudio started (PID: $PULSE_PID)"
 
-sleep 2
+sleep 3
 
 # Load Bluetooth modules
-pactl load-module module-bluetooth-policy
-pactl load-module module-bluetooth-discover
+export PULSE_RUNTIME_PATH=/var/run/pulse
+pactl load-module module-bluetooth-policy 2>/dev/null || echo "Warning: Could not load bluetooth-policy module"
+pactl load-module module-bluetooth-discover 2>/dev/null || echo "Warning: Could not load bluetooth-discover module"
 echo "Bluetooth audio modules loaded"
 
 # Create a pipe sink for snapserver
@@ -72,7 +91,7 @@ pactl load-module module-pipe-sink \
 echo "Pipe sink created for snapserver"
 
 # Set as default sink so Bluetooth audio routes here
-pactl set-default-sink snapcast
+pactl set-default-sink snapcast 2>/dev/null || echo "Warning: Could not set default sink"
 echo "Default sink set to snapcast"
 
 echo "====================================="
