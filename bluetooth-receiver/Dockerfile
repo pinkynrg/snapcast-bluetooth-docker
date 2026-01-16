@@ -10,7 +10,9 @@ RUN apt-get update && \
         alsa-utils \
         expect \
     && rm -rf /var/lib/apt/lists/* \
-    && rm -f /usr/share/dbus-1/services/pulseaudio.service
+    && rm -f /usr/share/dbus-1/services/pulseaudio.service \
+    && echo "autospawn = no" > /etc/pulse/client.conf \
+    && echo "daemon-binary = /bin/true" >> /etc/pulse/client.conf
 
 # Copy entrypoint script
 COPY entrypoint.sh /usr/local/bin/
