@@ -118,8 +118,10 @@ sleep 2
 echo "Bluetooth is now discoverable and auto-accepting connections"
 
 # Kill any existing PulseAudio instances and clean up
-pkill -9 pulseaudio 2>/dev/null || true
-rm -rf /var/run/pulse /root/.config/pulse
+killall -9 pulseaudio 2>/dev/null || true
+sleep 1
+pkill -9 -f pulseaudio 2>/dev/null || true
+rm -rf /var/run/pulse /root/.config/pulse /tmp/pulse-*
 mkdir -p /var/run/pulse
 
 # Create PulseAudio system configuration
@@ -142,14 +144,14 @@ load-module module-pipe-sink file=/tmp/snapfifo format=s16le rate=44100 channels
 set-default-sink snapcast
 EOF
 
-sleep 2
+sleep 3
 
 # Start PulseAudio in system mode
 pulseaudio --system --disallow-exit --log-level=error -F /etc/pulse/system.pa &
 PULSE_PID=$!
 echo "PulseAudio started (PID: $PULSE_PID)"
 
-sleep 3
+sleep 5
 
 echo "Audio configuration complete"
 
