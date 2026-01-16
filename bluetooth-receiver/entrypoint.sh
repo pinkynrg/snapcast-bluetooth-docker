@@ -120,38 +120,28 @@ echo "Bluetooth is now discoverable and auto-accepting connections"
 # Kill any existing PulseAudio instances and clean up
 killall -9 pulseaudio 2>/dev/null || true
 sleep 1
-pkill -9 -f pulseaudio 2>/dev/null || true
-rm -rf /var/run/pulse /root/.config/pulse /tmp/pulse-*
+rm -rf /var/run/pulse /root/.config/pulse /tmp/pulse-* ~/.pulse
 mkdir -p /var/run/pulse
 
-# Create PulseAudio system configuration
-mkdir -p /etc/pulse
-
-cat > /etc/pulse/system.pa << 'EOF'
-#!/usr/bin/pulseaudio -nF
-
-# Load protocol
-load-module module-native-protocol-unix auth-anonymous=1
-
-# Bluetooth support
-load-module module-bluetooth-policy
-load-module module-bluetooth-discover
-
-# Pipe sink for snapserver - match Bluetooth's 44100Hz rate
-load-module module-pipe-sink file=/tmp/snapfifo format=s16le rate=44100 channels=2 sink_name=snapcast
-
-# Set default
-set-default-sink snapcast
-EOF
-
-sleep 3
-
-# Start PulseAudio in system mode
-pulseaudio --system --disallow-exit --log-level=error -F /etc/pulse/system.pa &
+# Start PulseAudio in system mode with minimal config
+pulseaudio --system --disallow-exit --disallow-module-loading=false --log-level=error &
 PULSE_PID=$!
 echo "PulseAudio started (PID: $PULSE_PID)"
 
 sleep 5
+
+# Now load modules via pactl
+export PULSE_SERVER=unix:/var/run/pulse/native
+
+# Load Bluetooth support
+pactl load-module module-bluetooth-policy 2>/dev/null || echo "Bluetooth policy already loaded"
+pactl load-module module-bluetooth-discover 2>/dev/null || echo "Bluetooth discover already loaded"
+
+# Create pipe sink for snapserver
+pactl load-module module-pipe-sink file=/tmp/snapfifo format=s16le rate=44100 channels=2 sink_name=snapcast
+
+# Set as default
+pactl set-default-sink snapcast
 
 echo "Audio configuration complete"
 
