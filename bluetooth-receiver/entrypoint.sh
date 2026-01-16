@@ -106,6 +106,11 @@ sleep 2
 
 echo "Bluetooth is now discoverable and auto-accepting connections"
 
+# Kill any existing PulseAudio instances
+pulseaudio --kill 2>/dev/null || true
+killall -9 pulseaudio 2>/dev/null || true
+sleep 1
+
 # Start PulseAudio with minimal config
 mkdir -p /etc/pulse
 cat > /etc/pulse/system.pa << 'EOF'
