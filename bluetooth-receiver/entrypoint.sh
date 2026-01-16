@@ -135,18 +135,8 @@ load-module module-native-protocol-unix auth-anonymous=1
 load-module module-bluetooth-policy
 load-module module-bluetooth-discover
 
-# Pipe sink for snapserver  
-load-module module-pipe-sink file=/tmp/snapfifo format=s16le rate=48000 channels=2 sink_name=snapcast
-
-# Set default
-set-default-sink snapcast
-EOF
-
-sleep 2
-
-# Start PulseAudio in system mode
-pulseaudio --system --disallow-exit --log-level=error -F /etc/pulse/system.pa &
-PULSE_PID=$!
+# Pipe sink for snapserver - match Bluetooth's 44100Hz rate
+load-module module-pipe-sink file=/tmp/snapfifo format=s16le rate=44100 channels=2 sink_name=snapcast
 echo "PulseAudio started (PID: $PULSE_PID)"
 
 sleep 5
