@@ -120,32 +120,33 @@ echo "Bluetooth is now discoverable and auto-accepting connections"
 # Kill any existing PulseAudio instances and clean up
 killall -9 pulseaudio 2>/dev/null || true
 sleep 1
-rm -rf /var/run/pulse /root/.config/pulse /tmp/pulse-* ~/.pulse
-mkdir -p /var/run/pulse
+rm -rf /var/run/pulse /root/.config/pulse /tmp/pulse-* ~/.pulse /etc/pulse
+mkdir -p /var/run/pulse /etc/pulse
 
-# Create minimal system config
-mkdir -p /etc/pulse
+# Create minimal system config with no defaults
 cat > /etc/pulse/system.pa << 'EOF'
-load-module module-device-restore
-load-module module-stream-restore
-load-module module-card-restore
+.fail
 load-module module-native-protocol-unix auth-anonymous=1
 load-module module-bluetooth-policy
 load-module module-bluetooth-discover
+load-module module-pipe-sink file=/tmp/snapfifo format=s16le rate=44100 channels=2 sink_name=snapcast
+.nofail
+set-default-sink snapcast
 EOF
 
-# Start PulseAudio in system mode
+# Disable client autospawn
+cat > /etc/pulse/client.conf << 'EOF'
+autospawn = no
+daemon-binary = /bin/true
+enable-shm = no
+EOF
+
+# Start PulseAudio in system mode with our config
 pulseaudio --system --disallow-exit --log-level=error -F /etc/pulse/system.pa &
 PULSE_PID=$!
 echo "PulseAudio started (PID: $PULSE_PID)"
 
 sleep 5
-
-# Create pipe sink for snapserver
-pactl load-module module-pipe-sink file=/tmp/snapfifo format=s16le rate=44100 channels=2 sink_name=snapcast
-
-# Set as default
-pactl set-default-sink snapcast
 
 echo "Audio configuration complete"
 
