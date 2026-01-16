@@ -51,28 +51,37 @@ echo "Bluetooth daemon started (PID: $BLUETOOTHD_PID)"
 
 sleep 3
 
-# Configure Bluetooth to be discoverable and auto-accept
-bluetoothctl <<EOF
-power on
-discoverable on
-pairable on
-EOF
+# Configure Bluetooth to be discoverable and pairable
+bluetoothctl power on
+bluetoothctl discoverable on
+bluetoothctl pairable on
 
-sleep 1
+# Use a simple pairing agent script
+cat > /tmp/bt-agent << 'BTEOF'
+#!/usr/bin/expect -f
+set timeout -1
+spawn bluetoothctl
+send "agent NoInputNoOutput\r"
+expect "Agent registered"
+send "default-agent\r"
+expect eof
+BTEOF
 
-# Register agent in background for auto-pairing
-(
-  bluetoothctl <<EOF
-agent on
-default-agent
-EOF
-) &
+# Install expect if needed and run agent
+if ! command -v expect &> /dev/null; then
+    apt-get update && apt-get install -y expect
+fi
+chmod +x /tmp/bt-agent
+/tmp/bt-agent || echo "Agent setup attempted"
 
 echo "Bluetooth is now discoverable and accepting connections"
 
+# Kill any existing PulseAudio instances
+killall pulseaudio 2>/dev/null || true
+rm -f /var/run/pulse/native /var/run/pulse/pid
+
 # Create PulseAudio system configuration
 mkdir -p /etc/pulse
-rm -f /var/run/pulse/native
 
 cat > /etc/pulse/system.pa << 'EOF'
 #!/usr/bin/pulseaudio -nF
@@ -90,6 +99,8 @@ load-module module-pipe-sink file=/tmp/snapfifo format=s16le rate=48000 channels
 # Set default
 set-default-sink snapcast
 EOF
+
+sleep 1
 
 # Start PulseAudio in system mode
 pulseaudio --system --disallow-exit -F /etc/pulse/system.pa &

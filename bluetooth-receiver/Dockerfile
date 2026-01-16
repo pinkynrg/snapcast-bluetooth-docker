@@ -8,6 +8,7 @@ RUN apt-get update && \
         pulseaudio-module-bluetooth \
         dbus \
         alsa-utils \
+        expect \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy entrypoint script
