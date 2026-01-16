@@ -9,7 +9,8 @@ RUN apt-get update && \
         dbus \
         alsa-utils \
         expect \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /usr/share/dbus-1/services/pulseaudio.service
 
 # Copy entrypoint script
 COPY entrypoint.sh /usr/local/bin/
