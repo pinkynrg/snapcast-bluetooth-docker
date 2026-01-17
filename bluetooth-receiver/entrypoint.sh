@@ -162,7 +162,7 @@ load-module module-switch-on-connect
 set-default-sink tcp_out
 EOF
 
-pulseaudio --system --disallow-exit --log-level=error -F /etc/pulse/system.pa &
+pulseaudio --system --disallow-exit --log-level=error --file=/etc/pulse/system.pa -n &
 PULSE_PID=$!
 echo "PulseAudio started (PID: $PULSE_PID)"
 
