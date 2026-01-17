@@ -158,6 +158,7 @@ load-module module-null-sink sink_name=tcp_out rate=44100 channels=2
 load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source=tcp_out.monitor port=4953 listen=0.0.0.0 record=true
 load-module module-bluetooth-policy
 load-module module-bluetooth-discover
+load-module module-loopback source_dont_move=true sink_dont_move=true
 load-module module-switch-on-connect
 set-default-sink tcp_out
 EOF
