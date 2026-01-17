@@ -158,7 +158,6 @@ load-module module-null-sink sink_name=tcp_out rate=44100 channels=2
 load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source=tcp_out.monitor port=4953 listen=0.0.0.0 record=true
 load-module module-bluetooth-policy
 load-module module-bluetooth-discover
-load-module module-loopback source_dont_move=true sink_dont_move=true
 load-module module-switch-on-connect
 set-default-sink tcp_out
 EOF
@@ -178,6 +177,33 @@ echo "Streaming to TCP port 4953"
 echo "Connect your phone/device via Bluetooth"
 echo "Audio will stream to snapserver"
 echo "====================================="
+
+# Create loopback script that monitors for Bluetooth sources
+cat > /usr/local/bin/bt-loopback.sh << 'LOOPEOF'
+#!/bin/bash
+LOOPBACK_MODULE=""
+while true; do
+    # Check if a bluez source exists
+    BT_SOURCE=$(pactl list sources short | grep bluez | head -n1 | awk '{print $2}')
+    
+    if [ -n "$BT_SOURCE" ] && [ -z "$LOOPBACK_MODULE" ]; then
+        echo "Bluetooth source detected: $BT_SOURCE"
+        echo "Creating loopback to tcp_out sink..."
+        LOOPBACK_MODULE=$(pactl load-module module-loopback source="$BT_SOURCE" sink=tcp_out latency_msec=1)
+        echo "Loopback created (module ID: $LOOPBACK_MODULE)"
+    elif [ -z "$BT_SOURCE" ] && [ -n "$LOOPBACK_MODULE" ]; then
+        echo "Bluetooth source disconnected, removing loopback..."
+        pactl unload-module "$LOOPBACK_MODULE"
+        LOOPBACK_MODULE=""
+    fi
+    
+    sleep 2
+done
+LOOPEOF
+
+chmod +x /usr/local/bin/bt-loopback.sh
+/usr/local/bin/bt-loopback.sh &
+LOOPBACK_PID=$!
 
 # Monitor and keep container running
 while true; do
