@@ -3,6 +3,12 @@ set -e
 
 echo "Starting Bluetooth receiver..."
 
+# Kill any lingering processes from previous runs
+killall -9 bluetoothd 2>/dev/null || true
+killall -9 pulseaudio 2>/dev/null || true
+rm -rf /var/run/pulse /tmp/pulse-* /var/run/dbus/pid 2>/dev/null || true
+sleep 1
+
 # Check if Bluetooth hardware is available
 if ! ls /sys/class/bluetooth/hci* >/dev/null 2>&1; then
     echo "ERROR: No Bluetooth adapter found!"

@@ -10,12 +10,30 @@ Container gets stuck - bluetoothd starts but `bluetoothctl show` times out after
 - Either host has bluetoothd running OR container has duplicate bluetoothd process
 
 ## Solution
-Kill any existing bluetoothd before starting ours in the container:
+1. Kill any existing bluetoothd before starting ours in the container:
 ```bash
 killall -9 bluetoothd 2>/dev/null || true
 ```
 
-Added in entrypoint.sh before starting bluetoothd.
+2. **Host bluetooth service MUST be stopped and masked:**
+```bash
+sudo systemctl mask bluetooth
+sudo systemctl stop bluetooth
+```
+
+## Current Status
+✅ WORKING after reboot!
+- Device "Snapcast Receiver" visible on phone
+- Container running successfully
+- bluetoothd registered on D-Bus correctly
+
+## What Fixed It
+Reboot cleared hardware/driver state that was preventing discoverable mode from working properly
+
+## Next Steps
+- Test connecting phone and playing audio
+- Verify audio streams to snapserver
+- Once confirmed working, clean up debug code
 
 ## Changes to KEEP:
 
