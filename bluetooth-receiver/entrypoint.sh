@@ -40,6 +40,10 @@ echo "D-Bus started"
 
 sleep 1
 
+# Kill any existing bluetoothd (prevents "Name already in use" D-Bus error)
+killall -9 bluetoothd 2>/dev/null || true
+sleep 1
+
 # Start Bluetooth service
 /usr/libexec/bluetooth/bluetoothd &
 BLUETOOTHD_PID=$!
