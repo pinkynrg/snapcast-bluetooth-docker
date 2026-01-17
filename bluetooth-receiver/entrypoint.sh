@@ -153,9 +153,12 @@ echo "PulseAudio started (PID: $PULSE_PID)"
 sleep 3
 
 # Start TCP server using socat to stream audio
-socat TCP-LISTEN:4953,reuseaddr,fork EXEC:"parec --format=s16le --rate=44100 --channels=2 --monitor-source=tcp_out.monitor",nofork &
+export PULSE_SERVER=/run/pulse/native
+socat TCP-LISTEN:4953,reuseaddr,fork SYSTEM:"parecord --format=s16le --rate=44100 --channels=2 --monitor-source=tcp_out.monitor" &
 SOCAT_PID=$!
 echo "TCP server started on port 4953 (PID: $SOCAT_PID)"
+
+sleep 1
 
 echo "Audio configuration complete"
 
