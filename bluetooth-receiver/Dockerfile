@@ -6,6 +6,7 @@ RUN apt-get update && \
         bluez \
         pulseaudio \
         pulseaudio-module-bluetooth \
+        pulseaudio-utils \
         dbus \
         alsa-utils \
         expect \
