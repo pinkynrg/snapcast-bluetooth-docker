@@ -3,12 +3,6 @@ set -e
 
 echo "Starting Bluetooth receiver..."
 
-# Kill any lingering processes from previous runs
-killall -9 bluetoothd 2>/dev/null || true
-killall -9 pulseaudio 2>/dev/null || true
-rm -rf /var/run/pulse /tmp/pulse-* /var/run/dbus/pid 2>/dev/null || true
-sleep 1
-
 # Check if Bluetooth hardware is available
 if ! ls /sys/class/bluetooth/hci* >/dev/null 2>&1; then
     echo "ERROR: No Bluetooth adapter found!"
@@ -17,11 +11,6 @@ if ! ls /sys/class/bluetooth/hci* >/dev/null 2>&1; then
 fi
 
 echo "Bluetooth adapter found: $(ls /sys/class/bluetooth/)"
-
-# Bring up the Bluetooth adapter
-ADAPTER=$(ls /sys/class/bluetooth/ | head -n1)
-hciconfig $ADAPTER up
-echo "Bluetooth adapter brought up: $ADAPTER"
 
 # Configure Bluetooth for auto-pairing
 cat > /etc/bluetooth/main.conf << EOF
@@ -44,10 +33,6 @@ rm -f /var/run/dbus/pid
 dbus-daemon --system --fork
 echo "D-Bus started"
 
-sleep 1
-
-# Kill any existing bluetoothd (prevents "Name already in use" D-Bus error)
-killall -9 bluetoothd 2>/dev/null || true
 sleep 1
 
 # Start Bluetooth service
@@ -155,21 +140,15 @@ mkdir -p /etc/pulse
 cat > /etc/pulse/system.pa << 'EOF'
 load-module module-native-protocol-unix auth-anonymous=1
 load-module module-null-sink sink_name=tcp_out rate=44100 channels=2
+load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source=tcp_out.monitor port=4953 listen=0.0.0.0 record=true
 load-module module-bluetooth-policy
 load-module module-bluetooth-discover
 load-module module-switch-on-connect
 set-default-sink tcp_out
 EOF
 
-pulseaudio --system --disallow-exit --log-level=error --file=/etc/pulse/system.pa -n &
+pulseaudio --system --disallow-exit --log-level=error -F /etc/pulse/system.pa &
 PULSE_PID=$!
-
-sleep 3
-
-# Create FIFO and stream audio to it
-mkfifo /tmp/snapfifo
-parec --format=s16le --rate=44100 --channels=2 --monitor-source=tcp_out.monitor > /tmp/snapfifo &
-PAREC_PID=$!
 echo "PulseAudio started (PID: $PULSE_PID)"
 
 sleep 3
@@ -208,6 +187,31 @@ done
 LOOPEOF
 
 chmod +x /usr/local/bin/bt-loopback.sh
+/usr/local/bin/bt-loopback.sh &
+LOOPBACK_PID=$!
+
+# Monitor and keep container running
+while true; do
+    if ! kill -0 $BLUETOOTHD_PID 2>/dev/null; then
+        echo "ERROR: Bluetooth daemon died, restarting..."
+        /usr/libexec/bluetooth/bluetoothd &
+        BLUETOOTHD_PID=$!
+    fi
+    
+    if ! kill -0 $PULSE_PID 2>/dev/null; then
+        echo "ERROR: PulseAudio died, restarting..."
+        pulseaudio --system --disallow-exit --log-level=error -F /etc/pulse/system.pa &
+        PULSE_PID=$!
+    fi
+    
+    if ! kill -0 $AGENT_PID 2>/dev/null; then
+        echo "WARNING: Agent died, restarting..."
+        /usr/local/bin/bt-agent > /dev/null 2>&1 &
+        AGENT_PID=$!
+    fi
+    
+    sleep 10
+done
 /usr/local/bin/bt-loopback.sh &
 LOOPBACK_PID=$!
 
