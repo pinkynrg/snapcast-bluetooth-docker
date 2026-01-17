@@ -140,7 +140,6 @@ mkdir -p /etc/pulse
 cat > /etc/pulse/system.pa << 'EOF'
 load-module module-native-protocol-unix auth-anonymous=1
 load-module module-null-sink sink_name=tcp_out rate=44100 channels=2
-load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source=tcp_out.monitor port=4953 listen=0.0.0.0
 load-module module-bluetooth-policy
 load-module module-bluetooth-discover
 load-module module-switch-on-connect
@@ -152,6 +151,11 @@ PULSE_PID=$!
 echo "PulseAudio started (PID: $PULSE_PID)"
 
 sleep 3
+
+# Start TCP server using socat to stream audio
+socat TCP-LISTEN:4953,reuseaddr,fork EXEC:"parec --format=s16le --rate=44100 --channels=2 --monitor-source=tcp_out.monitor",nofork &
+SOCAT_PID=$!
+echo "TCP server started on port 4953 (PID: $SOCAT_PID)"
 
 echo "Audio configuration complete"
 

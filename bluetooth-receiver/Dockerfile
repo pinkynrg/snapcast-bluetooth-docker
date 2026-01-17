@@ -10,6 +10,7 @@ RUN apt-get update && \
         dbus \
         alsa-utils \
         expect \
+        socat \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /usr/share/dbus-1/services/pulseaudio.service \
     && echo "autospawn = no" > /etc/pulse/client.conf \
