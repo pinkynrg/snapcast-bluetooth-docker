@@ -12,6 +12,11 @@ fi
 
 echo "Bluetooth adapter found: $(ls /sys/class/bluetooth/)"
 
+# Bring up the Bluetooth adapter
+ADAPTER=$(ls /sys/class/bluetooth/ | head -n1)
+hciconfig $ADAPTER up
+echo "Bluetooth adapter brought up: $ADAPTER"
+
 # Configure Bluetooth for auto-pairing
 cat > /etc/bluetooth/main.conf << EOF
 [General]
