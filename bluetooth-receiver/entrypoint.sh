@@ -60,16 +60,16 @@ done
 echo "Bluetooth controller ready"
 
 # Configure Bluetooth to be discoverable and pairable
-bluetoothctl power on
-bluetoothctl discoverable on
-bluetoothctl pairable on
+bluetoothctl power on > /dev/null 2>&1
+bluetoothctl discoverable on > /dev/null 2>&1
+bluetoothctl pairable on > /dev/null 2>&1
 
 # Create auto-accept agent script
 cat > /usr/local/bin/bt-agent << 'AGENTEOF'
 #!/usr/bin/expect -f
 
 set timeout -1
-log_user 1
+log_user 0
 
 proc agent_loop {} {
     spawn bluetoothctl
@@ -97,12 +97,15 @@ proc agent_loop {} {
         expect {
             "Confirm passkey*yes/no*" {
                 send "yes\r"
+                puts "Bluetooth: Pairing confirmed"
             }
             "Accept pairing*yes/no*" {
                 send "yes\r"
+                puts "Bluetooth: Pairing accepted"
             }
             "Authorize service*yes/no*" {
                 send "yes\r"
+                puts "Bluetooth: Service authorized"
             }
             eof {
                 break
@@ -178,7 +181,7 @@ while true; do
     
     if ! kill -0 $PULSE_PID 2>/dev/null; then
         echo "ERROR: PulseAudio died, restarting..."
-        pulseaudio --system --disallow-exit --log-level=error -n --file=/etc/pulse/custom.pa &
+        pulseaudio --system --disallow-exit --log-level=error --file=/etc/pulse/system.pa &
         PULSE_PID=$!
     fi
     
