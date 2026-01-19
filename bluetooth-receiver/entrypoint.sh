@@ -95,17 +95,37 @@ proc agent_loop {} {
     # Keep agent running and auto-accept all requests
     while {1} {
         expect {
+            -re "\\[NEW\\] Device (.*) (.*)\r" {
+                set mac $expect_out(1,string)
+                set name $expect_out(2,string)
+                puts "Bluetooth: Device discovered - $name ($mac)"
+            }
+            -re "Request confirmation.*Device (.*) " {
+                set device $expect_out(1,string)
+            }
             "Confirm passkey*yes/no*" {
                 send "yes\r"
-                puts "Bluetooth: Pairing confirmed"
             }
             "Accept pairing*yes/no*" {
                 send "yes\r"
-                puts "Bluetooth: Pairing accepted"
             }
-            "Authorize service*yes/no*" {
+            -re "Authorize service.*\\((.*?)\\)" {
+                set service $expect_out(1,string)
+            }
+            "*yes/no*" {
                 send "yes\r"
-                puts "Bluetooth: Service authorized"
+            }
+            -re "\\[CHG\\] Device (.*) Connected: yes" {
+                set mac $expect_out(1,string)
+                puts "Bluetooth: Connected - $mac"
+            }
+            -re "\\[CHG\\] Device (.*) Connected: no" {
+                set mac $expect_out(1,string)
+                puts "Bluetooth: Disconnected - $mac"
+            }
+            -re "\\[CHG\\] Device (.*) ServicesResolved: yes" {
+                set mac $expect_out(1,string)
+                puts "Bluetooth: Device ready - $mac"
             }
             eof {
                 break
