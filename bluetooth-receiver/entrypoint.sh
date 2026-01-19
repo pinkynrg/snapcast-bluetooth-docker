@@ -135,9 +135,14 @@ pkill -9 -f pulseaudio 2>/dev/null || true
 rm -rf /var/run/pulse /tmp/pulse-* 2>/dev/null || true
 sleep 2
 
+# Disable default PulseAudio configs to prevent conflicts
+mkdir -p /etc/pulse/default.pa.d
+mv /etc/pulse/default.pa /etc/pulse/default.pa.disabled 2>/dev/null || true
+mv /etc/pulse/system.pa /etc/pulse/system.pa.disabled 2>/dev/null || true
+
 # Start PulseAudio with minimal config
 mkdir -p /etc/pulse
-cat > /etc/pulse/system.pa << 'EOF'
+cat > /etc/pulse/custom.pa << 'EOF'
 load-module module-native-protocol-unix auth-anonymous=1
 load-module module-null-sink sink_name=tcp_out rate=44100 channels=2
 load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source=tcp_out.monitor port=4953 listen=0.0.0.0 record=true
@@ -147,7 +152,7 @@ load-module module-switch-on-connect
 set-default-sink tcp_out
 EOF
 
-pulseaudio --system --disallow-exit --log-level=error --file=/etc/pulse/system.pa &
+pulseaudio --system --disallow-exit --log-level=error -n --file=/etc/pulse/custom.pa &
 PULSE_PID=$!
 echo "PulseAudio started (PID: $PULSE_PID)"
 
@@ -173,7 +178,7 @@ while true; do
     
     if ! kill -0 $PULSE_PID 2>/dev/null; then
         echo "ERROR: PulseAudio died, restarting..."
-        pulseaudio --system --disallow-exit --log-level=error --file=/etc/pulse/system.pa &
+        pulseaudio --system --disallow-exit --log-level=error -n --file=/etc/pulse/custom.pa &
         PULSE_PID=$!
     fi
     
