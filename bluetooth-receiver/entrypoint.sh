@@ -24,6 +24,9 @@ FastConnectable = true
 PageTimeout = 8192
 # Keep connection alive
 ControllerMode = dual
+# Disable security for auto-pairing (no prompts)
+JustWorksRepairing = always
+AlwaysPairable = true
 
 [Policy]
 AutoEnable=true
@@ -70,76 +73,62 @@ bluetoothctl power on > /dev/null 2>&1
 bluetoothctl discoverable on > /dev/null 2>&1
 bluetoothctl pairable on > /dev/null 2>&1
 
-# Create auto-accept agent script
+# Create auto-accept agent script using Python D-Bus
 cat > /usr/local/bin/bt-agent << 'AGENTEOF'
-#!/usr/bin/expect -f
+#!/usr/bin/env python3
+import dbus
+import dbus.service
+import dbus.mainloop.glib
+from gi.repository import GLib
 
-set timeout -1
-log_user 0
+BUS_NAME = 'org.bluez'
+AGENT_INTERFACE = 'org.bluez.Agent1'
+AGENT_PATH = "/org/bluez/AutoPairAgent"
 
-proc agent_loop {} {
-    spawn bluetoothctl
-    expect {
-        "*Agent registered*" { }
-        "*#" { }
-        timeout { after 2000; return }
-    }
-    sleep 1
+class AutoPairAgent(dbus.service.Object):
+    @dbus.service.method(AGENT_INTERFACE, in_signature="os", out_signature="")
+    def AuthorizeService(self, device, uuid):
+        print(f"Bluetooth: Service authorized for {device}")
+        return
+
+    @dbus.service.method(AGENT_INTERFACE, in_signature="o", out_signature="")
+    def RequestAuthorization(self, device):
+        print(f"Bluetooth: Authorization granted for {device}")
+        return
+
+    @dbus.service.method(AGENT_INTERFACE, in_signature="ou", out_signature="")
+    def RequestConfirmation(self, device, passkey):
+        print(f"Bluetooth: Auto-confirmed pairing for {device}")
+        return
+
+    @dbus.service.method(AGENT_INTERFACE, in_signature="o", out_signature="u")
+    def RequestPasskey(self, device):
+        print(f"Bluetooth: Using passkey 0 for {device}")
+        return dbus.UInt32(0)
+
+    @dbus.service.method(AGENT_INTERFACE, in_signature="o", out_signature="s")
+    def RequestPinCode(self, device):
+        print(f"Bluetooth: Using PIN 0000 for {device}")
+        return "0000"
+
+    @dbus.service.method(AGENT_INTERFACE, in_signature="", out_signature="")
+    def Cancel(self):
+        pass
+
+if __name__ == '__main__':
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+    bus = dbus.SystemBus()
+    agent = AutoPairAgent(bus, AGENT_PATH)
     
-    send "agent NoInputNoOutput\r"
-    expect {
-        "Agent registered" {
-            send "default-agent\r"
-            expect "Default agent request successful"
-        }
-        "Failed to register" {
-            after 5000
-            return
-        }
-    }
+    obj = bus.get_object(BUS_NAME, "/org/bluez")
+    manager = dbus.Interface(obj, "org.bluez.AgentManager1")
+    manager.RegisterAgent(AGENT_PATH, "NoInputNoOutput")
+    manager.RequestDefaultAgent(AGENT_PATH)
     
-    # Keep agent running and auto-accept all requests
-    while {1} {
-        expect {
-            -re "Device (..:..:..:..:..:..) (.*)" {
-                set mac $expect_out(1,string)
-                set name $expect_out(2,string)
-                if {[string match "*NEW*" $expect_out(0,string)]} {
-                    puts "Bluetooth: Device discovered - $name ($mac)"
-                }
-                if {[string match "*Connected: yes*" $expect_out(0,string)]} {
-                    puts "Bluetooth: Connected - $mac"
-                }
-                if {[string match "*Connected: no*" $expect_out(0,string)]} {
-                    puts "Bluetooth: Disconnected - $mac"
-                }
-                if {[string match "*ServicesResolved: yes*" $expect_out(0,string)]} {
-                    puts "Bluetooth: Device ready - $mac"
-                }
-            }
-            "Confirm passkey*yes/no*" {
-                send "yes\r"
-            }
-            "Accept pairing*yes/no*" {
-                send "yes\r"
-            }
-            "*yes/no*" {
-                send "yes\r"
-            }
-            eof {
-                break
-            }
-            timeout {
-                continue
-            }
-        }
-    }
-}
-
-while {1} {
-    agent_loop
-    after 2000
-}
+    print("Bluetooth agent registered - auto-pairing enabled")
+    
+    mainloop = GLib.MainLoop()
+    mainloop.run()
 AGENTEOF
 
 chmod +x /usr/local/bin/bt-agent
@@ -168,9 +157,10 @@ cat > /etc/pulse/custom.pa << 'EOF'
 load-module module-native-protocol-unix auth-anonymous=1
 load-module module-null-sink sink_name=tcp_out rate=44100 channels=2
 load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source=tcp_out.monitor port=4953 listen=0.0.0.0 record=true
-load-module module-bluetooth-policy
-load-module module-bluetooth-discover
+load-module module-bluetooth-policy auto_switch=2
+load-module module-bluetooth-discover headset=auto
 load-module module-switch-on-connect
+load-module module-loopback source=bluez_source.* sink=tcp_out latency_msec=200
 set-default-sink tcp_out
 EOF
 
