@@ -134,6 +134,51 @@ chmod +x /usr/local/bin/bt-agent
 /usr/local/bin/bt-agent &
 AGENT_PID=$!
 
+# Create Bluetooth connection monitor
+cat > /usr/local/bin/bt-monitor << 'MONITOREOF'
+#!/usr/bin/env python3
+import dbus
+import dbus.mainloop.glib
+from gi.repository import GLib
+import sys
+
+def device_property_changed(interface, changed, invalidated, path):
+    if interface != "org.bluez.Device1":
+        return
+    
+    device_path = str(path)
+    mac = device_path.split('/')[-1].replace('_', ':')
+    
+    if 'Connected' in changed:
+        if changed['Connected']:
+            print(f"Bluetooth: Connected - {mac}", flush=True)
+        else:
+            print(f"Bluetooth: Disconnected - {mac}", flush=True)
+    
+    if 'ServicesResolved' in changed:
+        if changed['ServicesResolved']:
+            print(f"Bluetooth: Device ready - {mac}", flush=True)
+
+if __name__ == '__main__':
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+    bus = dbus.SystemBus()
+    
+    bus.add_signal_receiver(
+        device_property_changed,
+        dbus_interface="org.freedesktop.DBus.Properties",
+        signal_name="PropertiesChanged",
+        path_keyword="path"
+    )
+    
+    print("Bluetooth monitor started", flush=True)
+    mainloop = GLib.MainLoop()
+    mainloop.run()
+MONITOREOF
+
+chmod +x /usr/local/bin/bt-monitor
+/usr/local/bin/bt-monitor &
+MONITOR_PID=$!
+
 sleep 2
 
 echo "Bluetooth is now discoverable and auto-accepting connections"
@@ -198,6 +243,7 @@ echo "Audio will stream to snapserver"
 echo "====================================="
 
 # Monitor and keep container running
+ERROR_COUNT=0
 while true; do
     if ! kill -0 $BLUETOOTHD_PID 2>/dev/null; then
         echo "ERROR: Bluetooth daemon died, restarting..."
@@ -207,7 +253,7 @@ while true; do
     
     if ! kill -0 $PULSE_PID 2>/dev/null; then
         echo "ERROR: PulseAudio died, restarting..."
-        pulseaudio --system --disallow-exit --log-level=error --file=/etc/pulse/system.pa &
+        pulseaudio --system --disallow-exit --log-level=error -n --file=/etc/pulse/custom.pa &
         PULSE_PID=$!
     fi
     
@@ -215,6 +261,27 @@ while true; do
         echo "WARNING: Agent died, restarting..."
         /usr/local/bin/bt-agent > /dev/null 2>&1 &
         AGENT_PID=$!
+    fi
+    
+    if ! kill -0 $MONITOR_PID 2>/dev/null; then
+        echo "WARNING: Monitor died, restarting..."
+        /usr/local/bin/bt-monitor &
+        MONITOR_PID=$!
+    fi
+    
+    # Check for Bluetooth hardware errors
+    if dmesg | tail -20 | grep -q "hci0: command.*tx timeout"; then
+        ERROR_COUNT=$((ERROR_COUNT + 1))
+        echo "WARNING: Bluetooth hardware timeout detected ($ERROR_COUNT/3)"
+        
+        if [ $ERROR_COUNT -ge 3 ]; then
+            echo "ERROR: Bluetooth hardware is stuck. Container needs restart."
+            echo "Please run: docker restart bluetooth-receiver"
+            echo "Or on host: sudo hciconfig hci0 down && sudo hciconfig hci0 up && docker restart bluetooth-receiver"
+            ERROR_COUNT=0
+        fi
+    else
+        ERROR_COUNT=0
     fi
     
     sleep 10
