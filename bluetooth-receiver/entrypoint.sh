@@ -20,9 +20,15 @@ Class = 0x200414
 DiscoverableTimeout = 0
 PairableTimeout = 0
 FastConnectable = true
+# Increase page timeout to prevent dropouts
+PageTimeout = 8192
+# Keep connection alive
+ControllerMode = dual
 
 [Policy]
 AutoEnable=true
+ReconnectAttempts=7
+ReconnectIntervals=1,2,4,8,16,32,64
 EOF
 
 echo "Bluetooth configured for auto-pairing"
@@ -166,6 +172,25 @@ load-module module-bluetooth-policy
 load-module module-bluetooth-discover
 load-module module-switch-on-connect
 set-default-sink tcp_out
+EOF
+
+# Configure daemon settings for better Bluetooth stability on Pi Zero
+cat > /etc/pulse/daemon.conf << 'EOF'
+daemonize = no
+fail = yes
+high-priority = yes
+nice-level = -11
+realtime-scheduling = yes
+realtime-priority = 5
+exit-idle-time = -1
+resample-method = ffmpeg
+avoid-resampling = yes
+default-sample-format = s16le
+default-sample-rate = 44100
+alternate-sample-rate = 48000
+default-sample-channels = 2
+default-fragments = 8
+default-fragment-size-msec = 10
 EOF
 
 pulseaudio --system --disallow-exit --log-level=error -n --file=/etc/pulse/custom.pa &
