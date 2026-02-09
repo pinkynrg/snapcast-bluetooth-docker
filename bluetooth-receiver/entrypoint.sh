@@ -20,18 +20,17 @@ Class = 0x200414
 DiscoverableTimeout = 0
 PairableTimeout = 0
 FastConnectable = true
-# Increase page timeout to prevent dropouts
-PageTimeout = 8192
-# Keep connection alive
 ControllerMode = dual
-# Disable security for auto-pairing (no prompts)
 JustWorksRepairing = always
-AlwaysPairable = true
+Privacy = off
+
+[BR]
+PageTimeout = 8192
 
 [Policy]
-AutoEnable=true
-ReconnectAttempts=7
-ReconnectIntervals=1,2,4,8,16,32,64
+AutoEnable = true
+ReconnectAttempts = 7
+ReconnectIntervals = 1,2,4,8,16,32,64
 EOF
 
 echo "Bluetooth configured for auto-pairing"
@@ -160,7 +159,6 @@ load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source
 load-module module-bluetooth-policy auto_switch=2
 load-module module-bluetooth-discover headset=auto
 load-module module-switch-on-connect
-load-module module-loopback source=bluez_source.* sink=tcp_out latency_msec=200
 set-default-sink tcp_out
 EOF
 
