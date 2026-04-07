@@ -70,16 +70,29 @@ done
 echo "Bluetooth controller ready"
 
 # Configure Bluetooth to be discoverable and pairable
-# Retry each command - can fail if a previously paired device triggers events
-for cmd in "power on" "discoverable on" "pairable on"; do
-    for attempt in 1 2 3; do
-        if bluetoothctl $cmd 2>&1 | tee /dev/stderr | grep -q "succeeded\|already"; then
-            break
-        fi
-        echo "Retrying bluetoothctl $cmd (attempt $attempt)..."
-        sleep 2
+# bluetoothctl needs commands piped via stdin in non-TTY environments
+for attempt in 1 2 3 4 5; do
+    echo "Setting up Bluetooth (attempt $attempt)..."
+    
+    result=$(echo -e "power on\ndiscoverable on\npairable on\nagent NoInputNoOutput\ndefault-agent\nquit" | bluetoothctl 2>&1)
+    echo "$result" | grep -E "succeeded|failed|error|already" | while read -r line; do
+        echo "  $line"
     done
+    
+    # Verify discoverable is actually on
+    if bluetoothctl show 2>/dev/null | grep -q "Discoverable: yes"; then
+        echo "Bluetooth setup complete - discoverable and pairable"
+        break
+    fi
+    
+    echo "Bluetooth not yet discoverable, retrying in 3s..."
+    sleep 3
 done
+
+# Final verification
+if ! bluetoothctl show 2>/dev/null | grep -q "Discoverable: yes"; then
+    echo "WARNING: Bluetooth may not be discoverable! Continuing anyway..."
+fi
 
 # Auto-trust and monitor connections using dbus-monitor (reliable, no TTY needed)
 cat > /usr/local/bin/bt-autopair.sh << 'EOF'

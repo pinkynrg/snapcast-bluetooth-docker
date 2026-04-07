@@ -63,6 +63,27 @@ Raspberry Pi Zero 2W running Bluetooth audio receiver in Docker, streaming to Sn
 
 ---
 
+### Issue 5: bluetoothctl commands fail silently without TTY (Apr 7, 2026)
+**Symptoms:**
+- `bluetoothctl power on` / `discoverable on` etc. fail or behave unpredictably in Docker
+- Device not visible to phones/computers
+- Commands sometimes race with device events ([NEW] Device appearing mid-command)
+
+**Root Cause:**
+- `bluetoothctl` is designed for interactive use with a TTY
+- Running `bluetoothctl <command>` without a TTY can fail silently
+- Previously paired devices triggering events can break single commands
+
+**Solution:**
+- Pipe all commands at once via stdin: `echo -e "power on\ndiscoverable on\n..." | bluetoothctl`
+- Also register agent (`NoInputNoOutput` + `default-agent`) in same session
+- Verify result by checking `bluetoothctl show` for `Discoverable: yes`
+- Retry loop (up to 5 attempts) with verification
+
+**Decision:** Always pipe commands to bluetoothctl via stdin. Always verify the result with `bluetoothctl show`.
+
+---
+
 ### Issue 4: Container Exits - `Failed to set discoverable on` (Apr 7, 2026)
 **Symptoms:**
 - `[NEW] Device D0:56:FB:19:B7:16` appears during startup (previously paired device)
