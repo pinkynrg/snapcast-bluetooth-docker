@@ -81,44 +81,49 @@ for cmd in "power on" "discoverable on" "pairable on"; do
     done
 done
 
-# Auto-trust and monitor connections
+# Auto-trust and monitor connections using dbus-monitor (reliable, no TTY needed)
 cat > /usr/local/bin/bt-autopair.sh << 'EOF'
 #!/bin/bash
-echo "Starting bt-autopair script..."
+echo "bt-autopair: starting..."
 
-# Test if bluetoothctl works
-if ! bluetoothctl show >/dev/null 2>&1; then
-    echo "ERROR: bluetoothctl is not working"
-    exit 1
-fi
+# Trust all previously paired devices
+for dev in $(bluetoothctl devices Paired 2>/dev/null | grep -oE "([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"); do
+    bluetoothctl trust "$dev" >/dev/null 2>&1
+    echo "bt-autopair: trusted known device $dev"
+done
 
-echo "bluetoothctl is responsive, starting monitor..."
-
-# Monitor bluetoothctl output
-bluetoothctl 2>&1 | while IFS= read -r line; do
-    echo "[BT-MONITOR] $line"
+# Monitor D-Bus for Bluetooth events (no TTY needed, won't exit)
+dbus-monitor --system "interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path_namespace=/org/bluez" 2>&1 | while IFS= read -r line; do
+    # Track device path
+    if echo "$line" | grep -q "path=/org/bluez/hci0/dev_"; then
+        current_path=$(echo "$line" | grep -oP "path=/org/bluez/hci0/dev_\K[A-F0-9_]+")
+        current_mac=$(echo "$current_path" | tr '_' ':')
+    fi
     
-    # Check for connection events
-    if echo "$line" | grep -iq "CHG.*Connected: yes"; then
-        mac=$(echo "$line" | grep -oE "([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}")
-        if [ -n "$mac" ]; then
-            echo "Bluetooth: Connected - $mac"
-            bluetoothctl trust "$mac" >/dev/null 2>&1
+    # Detect connection
+    if echo "$line" | grep -q '"Connected"'; then
+        read -r next_line
+        if echo "$next_line" | grep -q "true"; then
+            echo "Bluetooth: Connected - ${current_mac:-unknown}"
+            if [ -n "$current_mac" ]; then
+                bluetoothctl trust "$current_mac" >/dev/null 2>&1
+                echo "Bluetooth: Trusted - $current_mac"
+            fi
+        elif echo "$next_line" | grep -q "false"; then
+            echo "Bluetooth: Disconnected - ${current_mac:-unknown}"
         fi
-    elif echo "$line" | grep -iq "CHG.*Connected: no"; then
-        mac=$(echo "$line" | grep -oE "([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}")
-        if [ -n "$mac" ]; then
-            echo "Bluetooth: Disconnected - $mac"
-        fi
-    elif echo "$line" | grep -iq "NEW.*Device"; then
-        mac=$(echo "$line" | grep -oE "([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}")
-        if [ -n "$mac" ]; then
-            echo "Bluetooth: Device discovered - $mac"
+    fi
+    
+    # Detect services resolved (device fully ready)
+    if echo "$line" | grep -q '"ServicesResolved"'; then
+        read -r next_line
+        if echo "$next_line" | grep -q "true"; then
+            echo "Bluetooth: Device ready - ${current_mac:-unknown}"
         fi
     fi
 done
 
-echo "ERROR: bt-autopair monitor loop exited unexpectedly"
+echo "ERROR: bt-autopair dbus-monitor exited unexpectedly"
 exit 1
 EOF
 

@@ -46,12 +46,20 @@ Raspberry Pi Zero 2W running Bluetooth audio receiver in Docker, streaming to Sn
 ### Issue 3: Auto-Pair Script Immediately Dies (Apr 7, 2026)
 **Symptoms:**
 - `WARNING: Auto-pair script died, restarting...` loops continuously
+- `[D0-56-FB-19-B7-16]# quit` visible in output
 - No connection/disconnect events logged
 
-**Investigation:** 
-- Script uses `bluetoothctl | while read` pipe
-- Likely crashing because bluetoothctl expects interactive terminal
-- Need to add logging to see actual error
+**Root Cause:**
+- `bluetoothctl` requires a TTY (interactive terminal)
+- When piped (`bluetoothctl | while read`), it detects no TTY and exits immediately
+- The `quit` in the output confirms bluetoothctl is terminating itself
+
+**Solution:**
+- Replaced `bluetoothctl` monitoring with `dbus-monitor --system`
+- dbus-monitor doesn't need a TTY, runs forever, and gives reliable D-Bus events
+- Parse PropertiesChanged signals for Connected/Disconnected/ServicesResolved
+
+**Decision:** Never use `bluetoothctl` for background monitoring in Docker. Use `dbus-monitor` instead.
 
 ---
 
