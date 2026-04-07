@@ -140,9 +140,14 @@ echo "Auto-pair agent started"
 
 # ─── 8. CONNECTION MONITOR (dbus-monitor) ────────────────────────────
 # dbus-monitor doesn't need a TTY, runs forever, and reliably catches events.
+# On connect: create a loopback from the BT source to tcp_out so PulseAudio
+# keeps the A2DP transport acquired. Without an active consumer, BlueZ
+# disconnects after its 10-second idle timeout.
 cat > /usr/local/bin/bt-monitor.sh << 'MONEOF'
 #!/bin/bash
-dbus-monitor --system "interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path_namespace=/org/bluez" 2>&1 | while IFS= read -r line; do
+LOOPBACK_ID=""
+
+while IFS= read -r line; do
     if echo "$line" | grep -q "path=/org/bluez/hci0/dev_"; then
         current_mac=$(echo "$line" | grep -oP "dev_\K[A-F0-9_]+" | tr '_' ':')
     fi
@@ -150,11 +155,30 @@ dbus-monitor --system "interface='org.freedesktop.DBus.Properties',member='Prope
         read -r val
         if echo "$val" | grep -q "true"; then
             echo "Bluetooth: Connected - ${current_mac:-unknown}"
+            # Wait for PulseAudio to register the BT source (retry up to 10s)
+            BT_SOURCE=""
+            for i in 1 2 3 4 5; do
+                sleep 2
+                BT_SOURCE=$(pactl list sources short 2>/dev/null | grep -i "bluez_source" | awk '{print $2}' | head -1)
+                [ -n "$BT_SOURCE" ] && break
+            done
+            if [ -n "$BT_SOURCE" ]; then
+                [ -n "$LOOPBACK_ID" ] && pactl unload-module "$LOOPBACK_ID" 2>/dev/null
+                LOOPBACK_ID=$(pactl load-module module-loopback source="$BT_SOURCE" sink=tcp_out latency_msec=200 2>/dev/null)
+                echo "Bluetooth: Audio routing active ($BT_SOURCE → tcp_out)"
+            else
+                echo "Bluetooth: WARNING no BT audio source found in PulseAudio"
+            fi
         elif echo "$val" | grep -q "false"; then
             echo "Bluetooth: Disconnected - ${current_mac:-unknown}"
+            if [ -n "$LOOPBACK_ID" ]; then
+                pactl unload-module "$LOOPBACK_ID" 2>/dev/null
+                LOOPBACK_ID=""
+                echo "Bluetooth: Audio routing removed"
+            fi
         fi
     fi
-done
+done < <(dbus-monitor --system "interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path_namespace=/org/bluez" 2>&1)
 MONEOF
 chmod +x /usr/local/bin/bt-monitor.sh
 /usr/local/bin/bt-monitor.sh &
@@ -178,9 +202,8 @@ cat > /etc/pulse/custom.pa << 'EOF'
 load-module module-native-protocol-unix auth-anonymous=1
 load-module module-null-sink sink_name=tcp_out rate=44100 channels=2
 load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source=tcp_out.monitor port=4953 listen=0.0.0.0 record=true
-load-module module-bluetooth-policy auto_switch=2
+load-module module-bluetooth-policy auto_switch=0
 load-module module-bluetooth-discover headset=auto
-load-module module-switch-on-connect
 set-default-sink tcp_out
 EOF
 

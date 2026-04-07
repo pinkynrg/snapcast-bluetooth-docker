@@ -54,20 +54,24 @@ TEST THE HARDWARE FIRST with `sudo hciconfig hci0 piscan` before debugging softw
 
 ### Issue 2: Phone Disconnects After 10 Seconds
 **Symptoms:**
-- Phone connects successfully
-- Disconnects exactly ~10 seconds later
-- Happens even without playing audio
+- Phone connects successfully, audio plays for ~10 seconds, then disconnects
 
-**Attempts:**
-1. ❌ Added PulseAudio daemon.conf with buffering optimizations → No effect
-2. ❌ Added Bluetooth main.conf settings (PageTimeout, etc.) → Config ignored (wrong syntax)
-3. ❌ Created Python D-Bus agent for auto-pairing → No logging visibility
-4. ❌ Added connection monitor → Agent crashed silently
+**Root Cause:**
+BlueZ has a hardcoded 10-second A2DP idle timeout (`MEDIA_IDLE_TIMEOUT`). When PulseAudio
+has no active consumer reading from the BT source (`bluez_source.MAC`), it eventually
+suspends/releases the A2DP transport. BlueZ sees the transport released and disconnects.
 
-**Current Investigation:**
-- Simplified to pure bash approach
-- Need better logging to see what's happening
-- Auto-pair script is crashing immediately (Apr 7, 2026)
+**Fix:**
+In `bt-monitor.sh`, on connect: find the `bluez_source.MAC` and create `module-loopback`
+from it to `tcp_out`. This keeps the transport acquired indefinitely. On disconnect: unload
+the loopback module.
+
+**Key details:**
+- Used process substitution `done < <(dbus-monitor ...)` instead of pipe so `LOOPBACK_ID`
+  variable persists across loop iterations (pipe creates a subshell where vars are lost)
+- Retry loop to find BT source (PulseAudio needs a few seconds after A2DP connection)
+- Removed `module-switch-on-connect` (not needed; would wrongly reroute streams to BT sink)
+- Changed `auto_switch=2` to `auto_switch=0` in bluetooth-policy (loopback handles routing)
 
 ---
 
