@@ -5,22 +5,50 @@ Raspberry Pi Zero 2W running Bluetooth audio receiver in Docker, streaming to Sn
 
 ## Issues Encountered
 
-### Issue 1: Bluetooth Hardware Timeouts (Feb 9, 2026)
+### Issue 1: Bluetooth Hardware Timeouts - THE ROOT CAUSE (Feb 9 + Apr 7, 2026)
 **Symptoms:** 
 - `hci0: command 0x0c52 tx timeout` in dmesg
-- Device couldn't connect at all
-- Hardware appeared stuck after ~1 month of uptime
+- Device not visible to any phone/computer
+- `hciconfig hci0 piscan` returns `Connection timed out (110)` ← KEY INDICATOR
+- `hciconfig hci0` may still show `UP RUNNING PSCAN ISCAN` (misleading - software state, not hardware)
+- Container reports "Bluetooth is discoverable" but nothing can see it
+- Happened after ~1 month of uptime (Feb), then again in Apr after all the restarts
 
 **Root Cause:** 
-- Pi Zero Bluetooth runs over UART and can get into unrecoverable states
-- Not a software issue - hardware timeout
+- Pi Zero Bluetooth (BCM43430A1) runs over UART and the hardware gets into an unrecoverable state
+- The software (bluetoothd, bluetoothctl show) still reports everything OK - this is MISLEADING
+- The actual radio stops responding to HCI commands
+- This is a **hardware-level issue**, not a software/config issue
+- **All the config changes, Python agents, dbus-monitor - none of that was the real problem**
 
-**Solution:**
-- Manual reset: `sudo hciconfig hci0 down && sudo hciconfig hci0 up`
-- Container restart after reset
-- Created optional watchdog script (bluetooth-watchdog.sh) for automatic recovery
+**Confirmed Fix (the ONLY fix):**
+```bash
+docker stop bluetooth-receiver
+sudo hciconfig hci0 down
+sudo rmmod btbcm 2>/dev/null || true
+sudo rmmod hci_uart 2>/dev/null || true
+sleep 3
+sudo modprobe hci_uart
+sudo modprobe btbcm
+sleep 2
+sudo hciconfig hci0 up
+docker start bluetooth-receiver
+```
 
-**Decision:** Don't try to fix this in container - it requires host-level commands
+**How to detect it:**
+- `sudo hciconfig hci0 piscan` returns `Connection timed out (110)` → hardware is stuck
+- `sudo dmesg | grep -i bluetooth | tail -20` shows `tx timeout` errors
+
+**Automatic Recovery (Docker-only)**
+The container watchdog loop detects `tx timeout` in dmesg and performs the reset itself.
+This works because the container runs --privileged, which grants `CAP_SYS_MODULE`.
+No host-level service needed. The container kills its processes, runs `rmmod`/`modprobe`, restarts.
+
+Also remove wireplumber/pipewire from the Pi host entirely - it has no purpose on this Pi and
+interferes with the BT adapter. Run once on the host: `sudo apt-get remove --purge wireplumber pipewire pipewire-pulse -y && sudo apt-get autoremove -y`
+
+**Key lesson:** When device is not visible despite bluetoothctl showing discoverable,
+TEST THE HARDWARE FIRST with `sudo hciconfig hci0 piscan` before debugging software.
 
 ---
 
@@ -178,11 +206,51 @@ default-fragment-size-msec = 10
 
 ## Next Steps (Apr 7, 2026)
 
-1. [ ] Fix auto-pair script crash - add better error handling and logging
-2. [ ] Understand why bluetoothctl pipe is failing
-3. [ ] Get connect/disconnect events visible in logs
+1. [x] Fix auto-pair script crash - use expect (TTY) for agent, dbus-monitor for logging
+2. [x] Understand why bluetoothctl pipe is failing - no TTY in Docker
+3. [x] Get connect/disconnect events visible in logs - dbus-monitor
 4. [ ] Test if device actually stays connected once pairing works
 5. [ ] Once working, clean up entire script based on this document
+
+---
+
+## Important Rules
+
+### DO NOT edit early Dockerfile layers during debugging
+The Pi Zero takes ~350 seconds to rebuild when the apt-get layer changes.
+Only modify the Dockerfile when you're sure the change is needed.
+During debugging, only change entrypoint.sh (which is a later COPY layer and rebuilds in seconds).
+
+### Host services that may interfere
+The Pi Zero likely runs PipeWire (default on Raspberry Pi OS Bookworm+).
+PipeWire includes:
+- `pipewire` - audio server
+- `pipewire-pulse` - PulseAudio compatibility
+- `wireplumber` - session manager that can grab Bluetooth devices
+
+These host services may **compete** with the container's bluetoothd/PulseAudio for the Bluetooth adapter.
+This could explain why the setup "worked for a month then stopped" - a host service update or restart
+could have started interfering.
+
+**To investigate on the Pi:**
+```bash
+# Check if PipeWire/PulseAudio is running on the host
+systemctl --user status pipewire pipewire-pulse wireplumber
+
+# Check if host bluetooth service is running (should be stopped/masked)
+sudo systemctl status bluetooth.service
+
+# Check what's using the BT adapter on the host
+ps aux | grep -E "bluetooth|pulse|pipewire|wireplumber"
+
+# Nuclear option: disable all host audio/BT services
+sudo systemctl mask bluetooth.service
+systemctl --user stop pipewire pipewire-pulse wireplumber
+systemctl --user mask pipewire pipewire-pulse wireplumber
+```
+
+**NOTE:** The other Pi Zeros running snapclient use PipeWire for output.
+Only the bluetooth-receiver Pi should have host BT services disabled.
 
 ---
 

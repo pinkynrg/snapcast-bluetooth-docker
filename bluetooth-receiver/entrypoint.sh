@@ -236,10 +236,47 @@ while true; do
         MONITOR_PID=$!
     fi
 
-    # Check discoverable is still on (can turn off after timeout despite config)
-    if ! bluetoothctl show 2>/dev/null | grep -q "Discoverable: yes"; then
-        echo "WATCHDOG: Not discoverable, re-enabling..."
+    # Check for BT hardware lock-up (tx timeout in dmesg = BCM43430A1 is stuck)
+    # The container runs --privileged so it can reset kernel modules
+    if dmesg | tail -30 | grep -q "hci0: command.*tx timeout"; then
+        echo "WATCHDOG: BT hardware stuck (tx timeout detected), resetting..."
+        
+        kill $BLUETOOTHD_PID 2>/dev/null || true
+        kill $PULSE_PID 2>/dev/null || true
+        kill $AGENT_PID 2>/dev/null || true
+        kill $MONITOR_PID 2>/dev/null || true
+        
+        hciconfig hci0 down 2>/dev/null || true
+        rmmod btbcm 2>/dev/null || true
+        rmmod hci_uart 2>/dev/null || true
+        sleep 3
+        modprobe hci_uart
+        modprobe btbcm
+        sleep 2
+        hciconfig hci0 up
+        sleep 2
+        
+        echo "WATCHDOG: Hardware reset done, restarting services..."
+        /usr/libexec/bluetooth/bluetoothd &
+        BLUETOOTHD_PID=$!
+        sleep 3
+        
+        bluetoothctl power on 2>/dev/null || true
+        sleep 1
         bluetoothctl discoverable on 2>/dev/null || true
+        sleep 1
+        bluetoothctl pairable on 2>/dev/null || true
+        
+        pulseaudio --system --disallow-exit --log-level=error -n --file=/etc/pulse/custom.pa &
+        PULSE_PID=$!
+        /usr/local/bin/bt-agent &
+        AGENT_PID=$!
+        /usr/local/bin/bt-monitor.sh &
+        MONITOR_PID=$!
+        
+        echo "WATCHDOG: Recovery complete"
+        sleep 60
+        continue
     fi
 
     sleep 10
