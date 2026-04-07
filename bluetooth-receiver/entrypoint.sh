@@ -68,116 +68,32 @@ done
 echo "Bluetooth controller ready"
 
 # Configure Bluetooth to be discoverable and pairable
-bluetoothctl power on > /dev/null 2>&1
-bluetoothctl discoverable on > /dev/null 2>&1
-bluetoothctl pairable on > /dev/null 2>&1
+bluetoothctl power on
+bluetoothctl discoverable on
+bluetoothctl pairable on
 
-# Create auto-accept agent script using Python D-Bus
-cat > /usr/local/bin/bt-agent << 'AGENTEOF'
-#!/usr/bin/env python3
-import dbus
-import dbus.service
-import dbus.mainloop.glib
-from gi.repository import GLib
+# Auto-trust and pair any connecting device  
+cat > /usr/local/bin/bt-autopair.sh << 'EOF'
+#!/bin/bash
+bluetoothctl | while read -r line; do
+    if echo "$line" | grep -q "CHG.*Connected: yes"; then
+        mac=$(echo "$line" | grep -oE "([0-9A-F]{2}:){5}[0-9A-F]{2}" | head -1)
+        if [ -n "$mac" ]; then
+            echo "Bluetooth: Connected - $mac"
+            bluetoothctl trust "$mac" 2>/dev/null
+        fi
+    elif echo "$line" | grep -q "CHG.*Connected: no"; then
+        mac=$(echo "$line" | grep -oE "([0-9A-F]{2}:){5}[0-9A-F]{2}" | head -1)
+        if [ -n "$mac" ]; then
+            echo "Bluetooth: Disconnected - $mac"
+        fi
+    fi
+done
+EOF
 
-BUS_NAME = 'org.bluez'
-AGENT_INTERFACE = 'org.bluez.Agent1'
-AGENT_PATH = "/org/bluez/AutoPairAgent"
-
-class AutoPairAgent(dbus.service.Object):
-    @dbus.service.method(AGENT_INTERFACE, in_signature="os", out_signature="")
-    def AuthorizeService(self, device, uuid):
-        print(f"Bluetooth: Service authorized for {device}")
-        return
-
-    @dbus.service.method(AGENT_INTERFACE, in_signature="o", out_signature="")
-    def RequestAuthorization(self, device):
-        print(f"Bluetooth: Authorization granted for {device}")
-        return
-
-    @dbus.service.method(AGENT_INTERFACE, in_signature="ou", out_signature="")
-    def RequestConfirmation(self, device, passkey):
-        print(f"Bluetooth: Auto-confirmed pairing for {device}")
-        return
-
-    @dbus.service.method(AGENT_INTERFACE, in_signature="o", out_signature="u")
-    def RequestPasskey(self, device):
-        print(f"Bluetooth: Using passkey 0 for {device}")
-        return dbus.UInt32(0)
-
-    @dbus.service.method(AGENT_INTERFACE, in_signature="o", out_signature="s")
-    def RequestPinCode(self, device):
-        print(f"Bluetooth: Using PIN 0000 for {device}")
-        return "0000"
-
-    @dbus.service.method(AGENT_INTERFACE, in_signature="", out_signature="")
-    def Cancel(self):
-        pass
-
-if __name__ == '__main__':
-    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-    bus = dbus.SystemBus()
-    agent = AutoPairAgent(bus, AGENT_PATH)
-    
-    obj = bus.get_object(BUS_NAME, "/org/bluez")
-    manager = dbus.Interface(obj, "org.bluez.AgentManager1")
-    manager.RegisterAgent(AGENT_PATH, "NoInputNoOutput")
-    manager.RequestDefaultAgent(AGENT_PATH)
-    
-    print("Bluetooth agent registered - auto-pairing enabled")
-    
-    mainloop = GLib.MainLoop()
-    mainloop.run()
-AGENTEOF
-
-chmod +x /usr/local/bin/bt-agent
-/usr/local/bin/bt-agent &
-AGENT_PID=$!
-
-# Create Bluetooth connection monitor
-cat > /usr/local/bin/bt-monitor << 'MONITOREOF'
-#!/usr/bin/env python3
-import dbus
-import dbus.mainloop.glib
-from gi.repository import GLib
-import sys
-
-def device_property_changed(interface, changed, invalidated, path):
-    if interface != "org.bluez.Device1":
-        return
-    
-    device_path = str(path)
-    mac = device_path.split('/')[-1].replace('_', ':')
-    
-    if 'Connected' in changed:
-        if changed['Connected']:
-            print(f"Bluetooth: Connected - {mac}", flush=True)
-        else:
-            print(f"Bluetooth: Disconnected - {mac}", flush=True)
-    
-    if 'ServicesResolved' in changed:
-        if changed['ServicesResolved']:
-            print(f"Bluetooth: Device ready - {mac}", flush=True)
-
-if __name__ == '__main__':
-    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-    bus = dbus.SystemBus()
-    
-    bus.add_signal_receiver(
-        device_property_changed,
-        dbus_interface="org.freedesktop.DBus.Properties",
-        signal_name="PropertiesChanged",
-        path_keyword="path"
-    )
-    
-    print("Bluetooth monitor started", flush=True)
-    mainloop = GLib.MainLoop()
-    mainloop.run()
-MONITOREOF
-
-chmod +x /usr/local/bin/bt-monitor
-/usr/local/bin/bt-monitor &
-MONITOR_PID=$!
+chmod +x /usr/local/bin/bt-autopair.sh
+/usr/local/bin/bt-autopair.sh &
+AUTOPAIR_PID=$!
 
 sleep 2
 
@@ -243,7 +159,6 @@ echo "Audio will stream to snapserver"
 echo "====================================="
 
 # Monitor and keep container running
-ERROR_COUNT=0
 while true; do
     if ! kill -0 $BLUETOOTHD_PID 2>/dev/null; then
         echo "ERROR: Bluetooth daemon died, restarting..."
@@ -257,31 +172,10 @@ while true; do
         PULSE_PID=$!
     fi
     
-    if ! kill -0 $AGENT_PID 2>/dev/null; then
-        echo "WARNING: Agent died, restarting..."
-        /usr/local/bin/bt-agent > /dev/null 2>&1 &
-        AGENT_PID=$!
-    fi
-    
-    if ! kill -0 $MONITOR_PID 2>/dev/null; then
-        echo "WARNING: Monitor died, restarting..."
-        /usr/local/bin/bt-monitor &
-        MONITOR_PID=$!
-    fi
-    
-    # Check for Bluetooth hardware errors
-    if dmesg | tail -20 | grep -q "hci0: command.*tx timeout"; then
-        ERROR_COUNT=$((ERROR_COUNT + 1))
-        echo "WARNING: Bluetooth hardware timeout detected ($ERROR_COUNT/3)"
-        
-        if [ $ERROR_COUNT -ge 3 ]; then
-            echo "ERROR: Bluetooth hardware is stuck. Container needs restart."
-            echo "Please run: docker restart bluetooth-receiver"
-            echo "Or on host: sudo hciconfig hci0 down && sudo hciconfig hci0 up && docker restart bluetooth-receiver"
-            ERROR_COUNT=0
-        fi
-    else
-        ERROR_COUNT=0
+    if ! kill -0 $AUTOPAIR_PID 2>/dev/null; then
+        echo "WARNING: Auto-pair script died, restarting..."
+        /usr/local/bin/bt-autopair.sh &
+        AUTOPAIR_PID=$!
     fi
     
     sleep 10

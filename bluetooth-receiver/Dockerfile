@@ -8,9 +8,6 @@ RUN apt-get update && \
         pulseaudio-module-bluetooth \
         dbus \
         alsa-utils \
-        python3 \
-        python3-dbus \
-        python3-gi \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /usr/share/dbus-1/services/pulseaudio.service \
     && echo "autospawn = no" > /etc/pulse/client.conf \
