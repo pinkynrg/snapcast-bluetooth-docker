@@ -8,6 +8,7 @@ RUN apt-get update && \
         pulseaudio-module-bluetooth \
         dbus \
         alsa-utils \
+        expect \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /usr/share/dbus-1/services/pulseaudio.service \
     && echo "autospawn = no" > /etc/pulse/client.conf \
