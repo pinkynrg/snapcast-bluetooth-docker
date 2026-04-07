@@ -145,7 +145,7 @@ echo "Auto-pair agent started"
 # disconnects after its 10-second idle timeout.
 cat > /usr/local/bin/bt-monitor.sh << 'MONEOF'
 #!/bin/bash
-LOOPBACK_ID=""
+AUDIO_PIPE_PID=""
 
 while IFS= read -r line; do
     if echo "$line" | grep -q "path=/org/bluez/hci0/dev_"; then
@@ -156,29 +156,37 @@ while IFS= read -r line; do
         if echo "$val" | grep -q "true"; then
             echo "Bluetooth: Connected - ${current_mac:-unknown}"
             # BlueZ fires Connected=true twice (ACL + A2DP profile negotiation).
-            # If we already have an active loopback, don't touch it.
-            if [ -n "$LOOPBACK_ID" ] && pactl list modules short 2>/dev/null | awk '{print $1}' | grep -qx "$LOOPBACK_ID"; then
+            # If we already have an active pipe, don't touch it.
+            if [ -n "$AUDIO_PIPE_PID" ] && kill -0 "$AUDIO_PIPE_PID" 2>/dev/null; then
                 echo "Bluetooth: Routing already active, skipping"
                 continue
             fi
-            # Wait for PulseAudio to register the BT source (retry up to 10s)
+            # Find BT source quickly (0.5s intervals, up to 10s total)
             BT_SOURCE=""
-            for i in 1 2 3 4 5; do
-                sleep 2
+            for i in $(seq 1 20); do
+                sleep 0.5
                 BT_SOURCE=$(pactl list sources short 2>/dev/null | grep -i "bluez_source" | awk '{print $2}' | head -1)
                 [ -n "$BT_SOURCE" ] && break
             done
             if [ -n "$BT_SOURCE" ]; then
-                LOOPBACK_ID=$(pactl load-module module-loopback source="$BT_SOURCE" sink=tcp_out latency_msec=200 2>/dev/null)
-                echo "Bluetooth: Audio routing active ($BT_SOURCE → tcp_out)"
+                # parec reads from BT source → holds A2DP transport acquired continuously.
+                # pacat writes to tcp_out null-sink → module-simple-protocol-tcp broadcasts the monitor.
+                # A direct pipe avoids module-loopback's clock-adjustment stalls which can
+                # momentarily release the transport long enough for BlueZ's 10s idle timer to fire.
+                parec --device="$BT_SOURCE" --format=s16le --rate=44100 --channels=2 --raw 2>/dev/null \
+                    | pacat --playback --device=tcp_out --format=s16le --rate=44100 --channels=2 --raw 2>/dev/null &
+                AUDIO_PIPE_PID=$!
+                echo "Bluetooth: Audio routing active ($BT_SOURCE → tcp_out, PID=$AUDIO_PIPE_PID)"
+                # Log source state ~3s later for diagnostics
+                ( sleep 3; STATE=$(pactl list sources 2>/dev/null | grep -A3 "bluez_source" | grep "State:" | awk '{print $2}'); echo "Bluetooth: Source state after 3s: ${STATE:-unknown}"; ) &
             else
                 echo "Bluetooth: WARNING no BT audio source found in PulseAudio"
             fi
         elif echo "$val" | grep -q "false"; then
             echo "Bluetooth: Disconnected - ${current_mac:-unknown}"
-            if [ -n "$LOOPBACK_ID" ]; then
-                pactl unload-module "$LOOPBACK_ID" 2>/dev/null
-                LOOPBACK_ID=""
+            if [ -n "$AUDIO_PIPE_PID" ]; then
+                kill "$AUDIO_PIPE_PID" 2>/dev/null
+                AUDIO_PIPE_PID=""
                 echo "Bluetooth: Audio routing removed"
             fi
         fi
