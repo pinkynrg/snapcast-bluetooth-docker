@@ -72,30 +72,52 @@ bluetoothctl power on
 bluetoothctl discoverable on
 bluetoothctl pairable on
 
-# Auto-trust and pair any connecting device  
+# Auto-trust and monitor connections
 cat > /usr/local/bin/bt-autopair.sh << 'EOF'
 #!/bin/bash
-bluetoothctl | while read -r line; do
-    if echo "$line" | grep -q "CHG.*Connected: yes"; then
-        mac=$(echo "$line" | grep -oE "([0-9A-F]{2}:){5}[0-9A-F]{2}" | head -1)
+echo "Starting bt-autopair script..."
+
+# Test if bluetoothctl works
+if ! bluetoothctl show >/dev/null 2>&1; then
+    echo "ERROR: bluetoothctl is not working"
+    exit 1
+fi
+
+echo "bluetoothctl is responsive, starting monitor..."
+
+# Monitor bluetoothctl output
+bluetoothctl 2>&1 | while IFS= read -r line; do
+    echo "[BT-MONITOR] $line"
+    
+    # Check for connection events
+    if echo "$line" | grep -iq "CHG.*Connected: yes"; then
+        mac=$(echo "$line" | grep -oE "([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}")
         if [ -n "$mac" ]; then
             echo "Bluetooth: Connected - $mac"
-            bluetoothctl trust "$mac" 2>/dev/null
+            bluetoothctl trust "$mac" >/dev/null 2>&1
         fi
-    elif echo "$line" | grep -q "CHG.*Connected: no"; then
-        mac=$(echo "$line" | grep -oE "([0-9A-F]{2}:){5}[0-9A-F]{2}" | head -1)
+    elif echo "$line" | grep -iq "CHG.*Connected: no"; then
+        mac=$(echo "$line" | grep -oE "([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}")
         if [ -n "$mac" ]; then
             echo "Bluetooth: Disconnected - $mac"
         fi
+    elif echo "$line" | grep -iq "NEW.*Device"; then
+        mac=$(echo "$line" | grep -oE "([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}")
+        if [ -n "$mac" ]; then
+            echo "Bluetooth: Device discovered - $mac"
+        fi
     fi
 done
+
+echo "ERROR: bt-autopair monitor loop exited unexpectedly"
+exit 1
 EOF
 
-chmod +x /usr/local/bin/bt-autopair.sh
+chmod +x /usr/local/bin/bt-autopair.sh  
 /usr/local/bin/bt-autopair.sh &
 AUTOPAIR_PID=$!
 
-sleep 2
+sleep 3
 
 echo "Bluetooth is now discoverable and auto-accepting connections"
 
