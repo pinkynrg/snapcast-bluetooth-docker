@@ -155,6 +155,12 @@ while IFS= read -r line; do
         read -r val
         if echo "$val" | grep -q "true"; then
             echo "Bluetooth: Connected - ${current_mac:-unknown}"
+            # BlueZ fires Connected=true twice (ACL + A2DP profile negotiation).
+            # If we already have an active loopback, don't touch it.
+            if [ -n "$LOOPBACK_ID" ] && pactl list modules short 2>/dev/null | awk '{print $1}' | grep -qx "$LOOPBACK_ID"; then
+                echo "Bluetooth: Routing already active, skipping"
+                continue
+            fi
             # Wait for PulseAudio to register the BT source (retry up to 10s)
             BT_SOURCE=""
             for i in 1 2 3 4 5; do
@@ -163,7 +169,6 @@ while IFS= read -r line; do
                 [ -n "$BT_SOURCE" ] && break
             done
             if [ -n "$BT_SOURCE" ]; then
-                [ -n "$LOOPBACK_ID" ] && pactl unload-module "$LOOPBACK_ID" 2>/dev/null
                 LOOPBACK_ID=$(pactl load-module module-loopback source="$BT_SOURCE" sink=tcp_out latency_msec=200 2>/dev/null)
                 echo "Bluetooth: Audio routing active ($BT_SOURCE → tcp_out)"
             else

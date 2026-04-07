@@ -72,6 +72,10 @@ the loopback module.
 - Retry loop to find BT source (PulseAudio needs a few seconds after A2DP connection)
 - Removed `module-switch-on-connect` (not needed; would wrongly reroute streams to BT sink)
 - Changed `auto_switch=2` to `auto_switch=0` in bluetooth-policy (loopback handles routing)
+- BlueZ fires `Connected=true` **twice** per connection (once for ACL link, once for A2DP
+  profile negotiation). Guard against re-routing: if LOOPBACK_ID is set and the module is
+  still alive, skip the second event. Without this guard, the second event unloads the
+  working loopback, PulseAudio releases the transport, and the source disappears.
 
 ---
 
