@@ -1,5 +1,7 @@
 #!/bin/bash
-set -e
+# NOTE: Do NOT use set -e here. bluetoothctl commands can fail transiently
+# (e.g. when a previously paired device triggers events mid-command)
+# and we don't want the whole container to die.
 
 echo "Starting Bluetooth receiver..."
 
@@ -68,9 +70,16 @@ done
 echo "Bluetooth controller ready"
 
 # Configure Bluetooth to be discoverable and pairable
-bluetoothctl power on
-bluetoothctl discoverable on
-bluetoothctl pairable on
+# Retry each command - can fail if a previously paired device triggers events
+for cmd in "power on" "discoverable on" "pairable on"; do
+    for attempt in 1 2 3; do
+        if bluetoothctl $cmd 2>&1 | tee /dev/stderr | grep -q "succeeded\|already"; then
+            break
+        fi
+        echo "Retrying bluetoothctl $cmd (attempt $attempt)..."
+        sleep 2
+    done
+done
 
 # Auto-trust and monitor connections
 cat > /usr/local/bin/bt-autopair.sh << 'EOF'

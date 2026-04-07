@@ -43,7 +43,7 @@ Raspberry Pi Zero 2W running Bluetooth audio receiver in Docker, streaming to Sn
 
 ---
 
-### Issue 3: Auto-Pair Script Immediately Dies
+### Issue 3: Auto-Pair Script Immediately Dies (Apr 7, 2026)
 **Symptoms:**
 - `WARNING: Auto-pair script died, restarting...` loops continuously
 - No connection/disconnect events logged
@@ -52,6 +52,25 @@ Raspberry Pi Zero 2W running Bluetooth audio receiver in Docker, streaming to Sn
 - Script uses `bluetoothctl | while read` pipe
 - Likely crashing because bluetoothctl expects interactive terminal
 - Need to add logging to see actual error
+
+---
+
+### Issue 4: Container Exits - `Failed to set discoverable on` (Apr 7, 2026)
+**Symptoms:**
+- `[NEW] Device D0:56:FB:19:B7:16` appears during startup (previously paired device)
+- `Failed to set discoverable on: org.bluez.Error.Failed`
+- Container exits immediately
+
+**Root Cause:**
+1. `set -e` in entrypoint.sh kills the script on ANY command failure
+2. `bluetoothctl discoverable on` fails because a previously paired device triggers events mid-command, causing a race condition in bluetoothctl
+
+**Solution:**
+- Removed `set -e` from entrypoint.sh - only use explicit error handling where needed
+- Added retry loop for bluetoothctl commands (power on, discoverable on, pairable on)
+- Each command retries up to 3 times with 2 sec delay
+
+**Decision:** Never use `set -e` in scripts that interact with bluetooth - commands fail transiently and that's OK
 
 ---
 
