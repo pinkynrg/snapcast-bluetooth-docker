@@ -145,7 +145,6 @@ echo "Auto-pair agent started"
 # disconnects after its 10-second idle timeout.
 cat > /usr/local/bin/bt-monitor.sh << 'MONEOF'
 #!/bin/bash
-LOOPBACK_ID=""
 
 while IFS= read -r line; do
     if echo "$line" | grep -q "path=/org/bluez/hci0/dev_"; then
@@ -155,36 +154,8 @@ while IFS= read -r line; do
         read -r val
         if echo "$val" | grep -q "true"; then
             echo "Bluetooth: Connected - ${current_mac:-unknown}"
-            # BlueZ fires Connected=true twice (ACL + A2DP profile negotiation).
-            # If the loopback is alive, skip the second event.
-            if [ -n "$LOOPBACK_ID" ] && pactl list modules short 2>/dev/null | awk '{print $1}' | grep -qx "$LOOPBACK_ID"; then
-                echo "Bluetooth: Routing already active, skipping"
-                continue
-            fi
-            # Find BT source (0.5s intervals, up to 10s total)
-            BT_SOURCE=""
-            for i in $(seq 1 20); do
-                sleep 0.5
-                BT_SOURCE=$(pactl list sources short 2>/dev/null | grep -i "bluez_source" | awk '{print $2}' | head -1)
-                [ -n "$BT_SOURCE" ] && break
-            done
-            if [ -n "$BT_SOURCE" ]; then
-                # adjust_time=0 disables periodic clock sync that can briefly cork the
-                # source-output and release the A2DP transport between adjustments.
-                LOOPBACK_ID=$(pactl load-module module-loopback \
-                    source="$BT_SOURCE" sink=tcp_out \
-                    latency_msec=500 adjust_time=0 2>/dev/null)
-                echo "Bluetooth: Audio routing active ($BT_SOURCE → tcp_out, module=$LOOPBACK_ID)"
-            else
-                echo "Bluetooth: WARNING no BT audio source found in PulseAudio"
-            fi
         elif echo "$val" | grep -q "false"; then
             echo "Bluetooth: Disconnected - ${current_mac:-unknown}"
-            if [ -n "$LOOPBACK_ID" ]; then
-                pactl unload-module "$LOOPBACK_ID" 2>/dev/null
-                LOOPBACK_ID=""
-                echo "Bluetooth: Audio routing removed"
-            fi
         fi
     fi
 done < <(dbus-monitor --system "interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path_namespace=/org/bluez" 2>&1)
@@ -211,8 +182,9 @@ cat > /etc/pulse/custom.pa << 'EOF'
 load-module module-native-protocol-unix auth-anonymous=1
 load-module module-null-sink sink_name=tcp_out rate=44100 channels=2
 load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source=tcp_out.monitor port=4953 listen=0.0.0.0 record=true
-load-module module-bluetooth-policy auto_switch=0
-load-module module-bluetooth-discover headset=auto
+load-module module-bluetooth-policy
+load-module module-bluetooth-discover
+load-module module-switch-on-connect
 set-default-sink tcp_out
 EOF
 
