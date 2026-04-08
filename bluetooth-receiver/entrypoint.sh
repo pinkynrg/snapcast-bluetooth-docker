@@ -45,10 +45,7 @@ echo "D-Bus started"
 sleep 1
 
 # ─── 4. START BLUETOOTHD ─────────────────────────────────────────────
-# Disable HFP plugins: the phone connects HFP ~20s after A2DP, which causes
-# BlueZ to signal a profile change. PA's module-bluez5-device tears down the
-# entire card (source + loopback + transport) to rebuild profiles → disconnect.
-# We only need A2DP (music streaming), not HFP (phone calls).
+# Disable HFP plugins: this is a music receiver, not a phone call handler.
 /usr/libexec/bluetooth/bluetoothd --noplugin=hfp_hf,hfp_ag &
 BLUETOOTHD_PID=$!
 echo "bluetoothd started (PID: $BLUETOOTHD_PID)"
@@ -273,6 +270,12 @@ while true; do
         echo "WATCHDOG: Monitor died, restarting..."
         /usr/local/bin/bt-monitor.sh &
         MONITOR_PID=$!
+    fi
+
+    # Re-enable discoverable if it turned off (BlueZ can silently disable it after disconnect)
+    if ! bluetoothctl show 2>/dev/null | grep -q "Discoverable: yes"; then
+        echo "WATCHDOG: Not discoverable, re-enabling..."
+        bluetoothctl discoverable on 2>/dev/null || true
     fi
 
     # Check for BT hardware lock-up (tx timeout in dmesg = BCM43430A1 is stuck)
