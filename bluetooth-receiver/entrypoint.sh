@@ -243,6 +243,9 @@ echo "TCP port: 4953"
 echo "====================================="
 
 # ─── 11. WATCHDOG LOOP ──────────────────────────────────────────────
+# Record current dmesg line count so we only check NEW errors, not stale ones from before startup.
+DMESG_START=$(dmesg | wc -l)
+
 while true; do
     if ! kill -0 $BLUETOOTHD_PID 2>/dev/null; then
         echo "WATCHDOG: bluetoothd died, restarting..."
@@ -269,8 +272,8 @@ while true; do
     fi
 
     # Check for BT hardware lock-up (tx timeout in dmesg = BCM43430A1 is stuck)
-    # The container runs --privileged so it can reset kernel modules
-    if dmesg | tail -30 | grep -q "hci0: command.*tx timeout"; then
+    # Only check lines written AFTER container startup to avoid stale errors triggering on boot.
+    if dmesg | tail -n "+${DMESG_START}" | grep -q "hci0: command.*tx timeout"; then
         echo "WATCHDOG: BT hardware stuck (tx timeout detected), resetting..."
         
         kill $BLUETOOTHD_PID 2>/dev/null || true

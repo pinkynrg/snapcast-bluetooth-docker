@@ -4,6 +4,8 @@ services:
     container_name: bluetooth-receiver
     network_mode: host
     privileged: true
+    volumes:
+      - /lib/modules:/lib/modules:ro
     environment:
       - DEVICE_NAME=Snapcast Receiver
     restart: always
