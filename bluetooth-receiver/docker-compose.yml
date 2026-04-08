@@ -6,6 +6,10 @@ services:
     privileged: true
     volumes:
       - /lib/modules:/lib/modules:ro
+      - bluetooth-data:/var/lib/bluetooth
     environment:
       - DEVICE_NAME=Snapcast Receiver
     restart: always
+
+volumes:
+  bluetooth-data:
