@@ -62,16 +62,19 @@ has no active consumer reading from the BT source (`bluez_source.MAC`), it event
 suspends/releases the A2DP transport. BlueZ sees the transport released and disconnects.
 
 **Fix:**
-Replace `module-loopback` with a direct `parec | pacat` pipe:
-- `parec --device="$BT_SOURCE" --raw` opens a real source-output → A2DP transport fd stays acquired
-- `pacat --playback --device=tcp_out --raw` writes into the null-sink → monitor is broadcast by TCP module
-- `module-loopback` can do brief clock-adjustment stalls that momentarily cork its source-output.
-  When the source-output is corked, PulseAudio considers the transport idle and releases it.
-  BlueZ's 10-second idle timer then fires. A `parec` process never self-corks.
-- `parec | pacat &` → $! is the pacat PID. Killing pacat sends SIGPIPE to parec → both die cleanly.
-- Reduce source detection interval to 0.5s (was 2s) to find the source before BlueZ's idle timer fires.
-- BlueZ fires `Connected=true` twice; guard with `kill -0 $AUDIO_PIPE_PID` check.
-- Add source state log 3s after connect for diagnostics.
+Use `module-loopback source="$BT_SOURCE" sink=tcp_out latency_msec=500 adjust_time=0`:
+- Keeps A2DP transport acquired as long as the module is loaded
+- `adjust_time=0` disables periodic clock sync that briefly corks the source-output
+- Guard with `pactl list modules short | grep -qx "$LOOPBACK_ID"` to skip the second
+  BlueZ `Connected=true` event (ACL + A2DP profile negotiation = two events per connect)
+
+**What did NOT work:**
+- `parec | pacat` pipe: `parec` silently fails to connect to PulseAudio system daemon
+  (wrong socket path for root user in system mode). Source becomes idle → transport released → disconnect in ~3s.
+- Used process substitution `done < <(dbus-monitor ...)` instead of pipe so `LOOPBACK_ID`
+  variable persists across loop iterations (pipe creates a subshell where vars are lost)
+- Removed `module-switch-on-connect` (not needed; would wrongly reroute streams to BT sink)
+- Changed `auto_switch=2` to `auto_switch=0` in bluetooth-policy (loopback handles routing)
 
 ---
 
