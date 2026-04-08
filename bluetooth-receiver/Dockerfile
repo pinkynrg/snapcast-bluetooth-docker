@@ -1,15 +1,56 @@
 FROM debian:bookworm-slim
 
-# Install Bluetooth, bluez-alsa, and audio dependencies
+# Install build dependencies and runtime dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        # Build tools
+        git \
+        build-essential \
+        automake \
+        autoconf \
+        libtool \
+        pkg-config \
+        # Bluetooth and audio libraries
         bluez \
-        bluez-alsa \
+        libbluetooth-dev \
+        libasound2-dev \
+        libdbus-1-dev \
+        libglib2.0-dev \
+        libsbc-dev \
+        # Runtime tools
         dbus \
         alsa-utils \
         expect \
         procps \
         iproute2 \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build and install bluez-alsa from source
+RUN git clone --depth=1 https://github.com/Arkq/bluez-alsa.git /tmp/bluez-alsa && \
+    cd /tmp/bluez-alsa && \
+    autoreconf --install --force && \
+    mkdir build && cd build && \
+    ../configure --enable-cli --disable-manpages && \
+    make && make install && \
+    ldconfig && \
+    cd / && rm -rf /tmp/bluez-alsa
+
+# Clean up build dependencies to reduce image size
+RUN apt-get remove -y \
+        git \
+        build-essential \
+        automake \
+        autoconf \
+        libtool \
+        pkg-config \
+        libbluetooth-dev \
+        libasound2-dev \
+        libdbus-1-dev \
+        libglib2.0-dev \
+        libsbc-dev \
+    && apt-get autoremove -y \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Load ALSA loopback kernel module support
