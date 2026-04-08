@@ -213,6 +213,7 @@ load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source
 load-module module-bluetooth-policy
 load-module module-bluetooth-discover
 set-default-sink tcp_out
+set-default-source tcp_out.monitor
 EOF
 
 cat > /etc/pulse/daemon.conf << 'EOF'
