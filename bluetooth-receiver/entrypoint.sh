@@ -176,6 +176,7 @@ kill -0 $BLUEALSA_PID 2>/dev/null || { log "ERROR: bluealsad failed to start"; e
 # Also logs every connection change.
 get_dev_name() { bluetoothctl info "$1" 2>/dev/null | grep "Name:" | sed 's/.*Name: //' ; }
 (
+    set +e
     PREV_MACS=""
     while true; do
         CURR_MACS=$(bluetoothctl devices Connected 2>/dev/null | awk '{print $2}' | grep -E '^([0-9A-F]{2}:){5}[0-9A-F]{2}$' | sort)
@@ -223,9 +224,14 @@ get_dev_name() { bluetoothctl info "$1" 2>/dev/null | grep "Name:" | sed 's/.*Na
 get_player_props() {
     local mac="$1"
     local dev_path="/org/bluez/hci0/dev_${mac//:/_}"
-    local player_path="${dev_path}/player0"
+    # Player path can be player0, player1, etc. — discover dynamically.
+    local player_path
+    player_path=$(dbus-send --system --dest=org.bluez --print-reply / \
+        org.freedesktop.DBus.ObjectManager.GetManagedObjects 2>/dev/null \
+        | grep -o "${dev_path}/player[0-9]*" | head -1) || true
+    [ -z "$player_path" ] && return 1
     dbus-send --system --dest=org.bluez --print-reply "$player_path" \
-        org.freedesktop.DBus.Properties.GetAll string:org.bluez.MediaPlayer1 2>/dev/null
+        org.freedesktop.DBus.Properties.GetAll string:org.bluez.MediaPlayer1 2>/dev/null || true
 }
 get_now_playing() {
     local props="$1"
@@ -241,6 +247,7 @@ get_player_status() {
     echo "$props" | grep -A1 '"Status"' | grep 'variant' | sed 's/.*string "//;s/"$//'
 }
 (
+    set +e
     PREV_VOL=""
     PREV_TRACK=""
     PREV_STATUS=""
