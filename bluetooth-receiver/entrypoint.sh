@@ -45,7 +45,11 @@ echo "D-Bus started"
 sleep 1
 
 # ─── 4. START BLUETOOTHD ─────────────────────────────────────────────
-/usr/libexec/bluetooth/bluetoothd &
+# Disable HFP plugins: the phone connects HFP ~20s after A2DP, which causes
+# BlueZ to signal a profile change. PA's module-bluez5-device tears down the
+# entire card (source + loopback + transport) to rebuild profiles → disconnect.
+# We only need A2DP (music streaming), not HFP (phone calls).
+/usr/libexec/bluetooth/bluetoothd --noplugin=hfp_hf,hfp_ag &
 BLUETOOTHD_PID=$!
 echo "bluetoothd started (PID: $BLUETOOTHD_PID)"
 sleep 3
@@ -249,7 +253,7 @@ DMESG_START=$(dmesg | wc -l)
 while true; do
     if ! kill -0 $BLUETOOTHD_PID 2>/dev/null; then
         echo "WATCHDOG: bluetoothd died, restarting..."
-        /usr/libexec/bluetooth/bluetoothd &
+        /usr/libexec/bluetooth/bluetoothd --noplugin=hfp_hf,hfp_ag &
         BLUETOOTHD_PID=$!
     fi
 
@@ -292,7 +296,7 @@ while true; do
         sleep 2
         
         echo "WATCHDOG: Hardware reset done, restarting services..."
-        /usr/libexec/bluetooth/bluetoothd &
+        /usr/libexec/bluetooth/bluetoothd --noplugin=hfp_hf,hfp_ag &
         BLUETOOTHD_PID=$!
         sleep 3
         
