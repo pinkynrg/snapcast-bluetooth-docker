@@ -121,45 +121,16 @@ fi
 
 echo "bluealsa daemon running (PID: $BLUEALSA_PID)"
 
-# ─── 7. CREATE AUTO-ROUTER FOR BLUETOOTH CONNECTIONS ─────────────────
-echo "[7/8] Setting up automatic audio routing..."
+# ─── 7. START AUDIO PLAYBACK ──────────────────────────────────────────
+echo "[7/8] Starting audio routing..."
 
-cat > /usr/local/bin/bluealsa-autoroute.sh << 'ROUTEREOF'
-#!/bin/bash
-# Automatically route new Bluetooth A2DP connections to ALSA loopback
-# Uses bluealsactl monitor to detect new PCMs (more reliable than bluetoothctl)
-
-echo "[AutoRouter] Started, monitoring for Bluetooth PCMs..."
-
-# Use bluealsactl monitor to watch for new PCM events
-bluealsactl monitor 2>/dev/null | while read -r line; do
-    if echo "$line" | grep -q "PCMAdded"; then
-        echo "[AutoRouter] New PCM detected: $line"
-        sleep 2  # Wait for transport to fully initialize
-        
-        # List all available PCMs and start playback for A2DP sink PCMs
-        bluealsactl list-pcms 2>/dev/null | while read -r pcm; do
-            if echo "$pcm" | grep -q "a2dp-sink"; then
-                MAC=$(echo "$pcm" | grep -oE '([0-9A-F]{2}_){5}[0-9A-F]{2}' | tr '_' ':' | head -1)
-                if [ -n "$MAC" ] && ! pgrep -f "bluealsa-aplay.*$MAC" >/dev/null 2>&1; then
-                    echo "[AutoRouter] Starting playback for $MAC -> hw:Loopback,0,0"
-                    bluealsa-aplay -D hw:Loopback,0,0 --single-audio "$MAC" 2>&1 | while read -r aplay_line; do
-                        echo "[bluealsa-aplay] $aplay_line"
-                    done &
-                    echo "[AutoRouter] Audio routing active for $MAC"
-                fi
-            fi
-        done
-    elif echo "$line" | grep -q "PCMRemoved"; then
-        echo "[AutoRouter] PCM removed: $line"
-    fi
-done
-ROUTEREOF
-chmod +x /usr/local/bin/bluealsa-autoroute.sh
-
-/usr/local/bin/bluealsa-autoroute.sh &
-ROUTER_PID=$!
-echo "Auto-router started (PID: $ROUTER_PID)"
+# bluealsa-aplay without a MAC address automatically handles ALL connecting
+# devices. --single-audio plays one device at a time. No custom router needed.
+bluealsa-aplay -D hw:Loopback,0,0 --single-audio 2>&1 | while read -r line; do
+    echo "[bluealsa-aplay] $line"
+done &
+APLAY_PID=$!
+echo "bluealsa-aplay started (PID: $APLAY_PID)"
 
 # ─── 8. CONFIGURE ALSA LOOPBACK ──────────────────────────────────────
 echo "[8/8] Configuring ALSA loopback..."
@@ -212,10 +183,12 @@ while true; do
         BLUEALSA_PID=$!
     fi
     
-    if ! kill -0 $ROUTER_PID 2>/dev/null; then
-        echo "WATCHDOG: Auto-router died, restarting..."
-        /usr/local/bin/bluealsa-autoroute.sh &
-        ROUTER_PID=$!
+    if ! kill -0 $APLAY_PID 2>/dev/null; then
+        echo "WATCHDOG: bluealsa-aplay died, restarting..."
+        bluealsa-aplay -D hw:Loopback,0,0 --single-audio 2>&1 | while read -r line; do
+            echo "[bluealsa-aplay] $line"
+        done &
+        APLAY_PID=$!
     fi
     
     # Re-enable discoverable if needed
