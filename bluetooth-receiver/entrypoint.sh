@@ -245,11 +245,20 @@ default-sample-rate = 44100
 default-sample-channels = 2
 default-fragments = 8
 default-fragment-size-msec = 10
+log-level = debug
 EOF
 
-pulseaudio --system --disallow-exit --log-level=info -n --file=/etc/pulse/custom.pa &
+# Start PulseAudio with debug logging, redirect to log file
+pulseaudio --system --disallow-exit --log-level=debug -n --file=/etc/pulse/custom.pa >/var/log/pulseaudio.log 2>&1 &
 PULSE_PID=$!
-echo "PulseAudio started (PID: $PULSE_PID)"
+echo "PulseAudio started with DEBUG logging (PID: $PULSE_PID)"
+
+# Tail PulseAudio logs to docker output with timestamps and thread info
+tail -f /var/log/pulseaudio.log | while IFS= read -r line; do 
+    echo "[$(date +%H:%M:%S)] [PA] $line"
+done &
+PA_TAIL_PID=$!
+
 sleep 3
 
 # ─── 10. READY ──────────────────────────────────────────────────────
@@ -273,8 +282,9 @@ while true; do
 
     if ! kill -0 $PULSE_PID 2>/dev/null; then
         echo "WATCHDOG: PulseAudio died, restarting..."
-        pulseaudio --system --disallow-exit --log-level=info -n --file=/etc/pulse/custom.pa &
+        pulseaudio --system --disallow-exit --log-level=debug -n --file=/etc/pulse/custom.pa >/var/log/pulseaudio.log 2>&1 &
         PULSE_PID=$!
+        tail -f /var/log/pulseaudio.log | while IFS= read -r line; do echo "[$(date +%H:%M:%S)] [PA] $line"; done &
     fi
 
     if ! kill -0 $AGENT_PID 2>/dev/null; then
