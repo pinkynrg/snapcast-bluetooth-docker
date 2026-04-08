@@ -19,6 +19,7 @@ Phone ──BT A2DP──► BlueZ ──► bluealsad ──► bluealsa-aplay 
 - **dsnoop** — ALSA plugin allowing drain + TCP server to share loopback capture
 - **expect** — auto-responds to bluetoothctl pairing/authorization prompts
 - **socat** — TCP server sending raw PCM to Snapserver
+- **plug** — ALSA rate converter (resamples 48kHz Mac → 44100 for loopback)
 
 ## What Failed and Why
 
@@ -85,11 +86,27 @@ fills in ~30 seconds and the BT connection dies.
 ### softvol + mixer flags
 The softvol ALSA plugin wraps `hw:Loopback,0,0` and creates a "Bluetooth" mixer control.
 `bluealsa-aplay --mixer-device=hw:Loopback --mixer-control=Bluetooth` maps A2DP AVRCP volume
-changes to this control. Phone volume slider now controls actual output amplitude.
+changes to this control. Phone volume slider now controls actual output amplitude. Initial volume is set to 50%.
+
+### Rate conversion (plug plugin)
+`softvol` passes through to `loopout_plug` (type plug) which resamples any input rate to
+44100 S16_LE stereo before writing to `hw:Loopback,0,0`. Macs stream A2DP at 48kHz — without
+the plug, bluealsa-aplay fails with "Set sample rate: Invalid argument: 48000".
+
+### VERBOSE mode
+Set `VERBOSE=true` in docker-compose.yml to see full output from all subprocesses (dbus-daemon,
+bluetoothed, bluealsad, bluealsa-aplay, expect agent). In normal mode, only key events are
+logged with a `[bt-receiver]` prefix: startup steps, device connect/disconnect, volume changes,
+process restarts.
 
 ### Single-device enforcer
 Polls `bluetoothctl devices Connected` every 2 seconds. If >1 device connected, identifies
-which is new (wasn't in previous poll) and disconnects the rest. Prevents audio conflicts.
+which is new (wasn't in previous poll) and disconnects the rest. Prevents audio conflicts. Also logs connections, disconnections, and evictions with resolved
+device names.
+
+### Volume monitoring
+A background loop polls the softvol `Bluetooth` mixer every 2 seconds and logs percentage
+changes: `[bt-receiver] Volume changed: 75%`.
 
 ### mknod after modprobe
 After `modprobe snd-aloop`, iterates `/sys/class/sound/*`, reads major:minor from each
@@ -118,6 +135,7 @@ git pull && docker build -t pinkynrg/bluetooth-receiver:latest . \
 - `privileged: true` (BT adapter + kernel modules)
 - `network_mode: host` (BT + TCP server)
 - Volume: `bluetooth-data:/var/lib/bluetooth` (pairing keys persist across restarts)
+- Env: `DEVICE_NAME` (BT advertised name), `VERBOSE` (true/false, default false)
 
 ## Hardware
 

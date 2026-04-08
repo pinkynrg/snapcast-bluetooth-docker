@@ -238,7 +238,7 @@ log "Starting audio routing..."
 # Initialize softvol mixer control with a dummy write (must happen before bluealsa-aplay)
 aplay -D loopout -d 1 /dev/zero 2>/dev/null || true
 sleep 1
-amixer -c Loopback -q set 'Bluetooth' 100% 2>/dev/null || true
+amixer -c Loopback -q set 'Bluetooth' 50% 2>/dev/null || true
 
 # Drain: continuously read loopback capture → /dev/null to prevent buffer stall
 arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw /dev/null 2>/dev/null &
