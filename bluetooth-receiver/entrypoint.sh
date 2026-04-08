@@ -14,7 +14,7 @@ echo "Device: $DEVICE_NAME"
 echo "========================================="
 
 # ─── 1. DBUS ────────────────────────────────────────────────────────
-echo "[1/9] Starting D-Bus..."
+echo "[1/8] Starting D-Bus..."
 mkdir -p /var/run/dbus
 rm -f /var/run/dbus/pid
 dbus-daemon --system --nofork --nopidfile &
@@ -22,7 +22,7 @@ DBUS_PID=$!
 sleep 2
 
 # ─── 2. LOAD ALSA LOOPBACK KERNEL MODULE ────────────────────────────
-echo "[2/9] Loading ALSA loopback module..."
+echo "[2/8] Loading ALSA loopback module..."
 if ! lsmod | grep -q snd_aloop; then
     modprobe snd-aloop pcm_substreams=1 || {
         echo "ERROR: Failed to load snd-aloop module"
@@ -41,7 +41,7 @@ for i in {1..10}; do
 done
 
 # ─── 3. BLUETOOTH CONFIGURATION ──────────────────────────────────────
-echo "[3/9] Configuring Bluetooth..."
+echo "[3/8] Configuring Bluetooth..."
 mkdir -p /var/lib/bluetooth
 cat > /etc/bluetooth/main.conf << EOF
 [General]
@@ -60,46 +60,35 @@ AutoEnable = true
 EOF
 
 # ─── 4. START BLUETOOTHD ─────────────────────────────────────────────
-echo "[4/9] Starting bluetoothd..."
+echo "[4/8] Starting bluetoothd..."
 /usr/libexec/bluetooth/bluetoothd -d &
 BLUETOOTHD_PID=$!
 sleep 3
 
 # ─── 5. INITIALIZE BLUETOOTH ADAPTER ─────────────────────────────────
-echo "[5/9] Initializing Bluetooth adapter..."
+echo "[5/8] Initializing Bluetooth adapter..."
 hciconfig hci0 up
-bluetoothctl power on
-bluetoothctl discoverable on
-bluetoothctl pairable on
-bluetoothctl agent NoInputNoOutput
-bluetoothctl default-agent
+sleep 1
+
+# Use bluetoothctl in non-blocking mode by piping commands
+(
+echo "power on"
+sleep 1
+echo "discoverable on"
+sleep 1
+echo "pairable on"
+sleep 1
+echo "agent NoInputNoOutput"
+sleep 1
+echo "default-agent"
+sleep 1
+echo "quit"
+) | bluetoothctl
 
 echo "Bluetooth adapter ready"
 
-# ─── 6. CREATE BLUETOOTH AGENT ───────────────────────────────────────
-echo "[6/9] Creating Bluetooth pairing agent..."
-cat > /usr/local/bin/bt-agent << 'AGENTEOF'
-#!/usr/bin/expect -f
-set timeout -1
-spawn bluetoothctl
-expect "Agent registered"
-expect "#"
-send "agent NoInputNoOutput\r"
-expect "Agent is already registered"
-expect "#"
-send "default-agent\r"
-expect "Default agent request successful"
-expect "#"
-interact
-AGENTEOF
-chmod +x /usr/local/bin/bt-agent
-
-/usr/local/bin/bt-agent &
-AGENT_PID=$!
-sleep 2
-
-# ─── 7. START BLUEZ-ALSA ─────────────────────────────────────────────
-echo "[7/9] Starting bluez-alsa..."
+# ─── 6. START BLUEZ-ALSA ─────────────────────────────────────────────
+echo "[6/8] Starting bluez-alsa..."
 
 # bluealsa daemon: handles Bluetooth audio
 # --profile=a2dp-source: We're receiving audio FROM phones (A2DP source)
@@ -115,8 +104,8 @@ fi
 
 echo "bluealsa daemon running (PID: $BLUEALSA_PID)"
 
-# ─── 8. CREATE AUTO-ROUTER FOR BLUETOOTH CONNECTIONS ─────────────────
-echo "[8/9] Setting up automatic audio routing..."
+# ─── 7. CREATE AUTO-ROUTER FOR BLUETOOTH CONNECTIONS ─────────────────
+echo "[7/8] Setting up automatic audio routing..."
 
 cat > /usr/local/bin/bluealsa-autoroute.sh << 'ROUTEREOF'
 #!/bin/bash
@@ -166,8 +155,8 @@ chmod +x /usr/local/bin/bluealsa-autoroute.sh
 ROUTER_PID=$!
 echo "Auto-router started (PID: $ROUTER_PID)"
 
-# ─── 9. CONFIGURE ALSA LOOPBACK ──────────────────────────────────────
-echo "[9/9] Configuring ALSA loopback..."
+# ─── 8. CONFIGURE ALSA LOOPBACK ──────────────────────────────────────
+echo "[8/8] Configuring ALSA loopback..."
 
 # Create asound.conf to define a PCM device for Snapcast to capture from
 cat > /etc/asound.conf << 'EOF'
@@ -194,7 +183,7 @@ amixer -c Loopback -q set 'PCM' 100% unmute 2>/dev/null || true
 
 echo "ALSA loopback configured for Snapcast"
 
-# ─── 10. READY ───────────────────────────────────────────────────────
+# ─── 9. READY ───────────────────────────────────────────────────────
 echo "========================================="
 echo "Bluetooth receiver ready!"
 echo "Device name: ${DEVICE_NAME}"
@@ -203,7 +192,7 @@ echo ""
 echo "Pair your phone and play audio"
 echo "========================================="
 
-# ─── 11. WATCHDOG LOOP ───────────────────────────────────────────────
+# ─── 10. WATCHDOG LOOP ───────────────────────────────────────────────
 while true; do
     if ! kill -0 $BLUETOOTHD_PID 2>/dev/null; then
         echo "WATCHDOG: bluetoothd died, restarting..."
@@ -215,12 +204,6 @@ while true; do
         echo "WATCHDOG: bluealsa died, restarting..."
         bluealsa --profile=a2dp-source &
         BLUEALSA_PID=$!
-    fi
-    
-    if ! kill -0 $AGENT_PID 2>/dev/null; then
-        echo "WATCHDOG: Agent died, restarting..."
-        /usr/local/bin/bt-agent &
-        AGENT_PID=$!
     fi
     
     if ! kill -0 $ROUTER_PID 2>/dev/null; then
