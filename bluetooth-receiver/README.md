@@ -97,16 +97,22 @@ the plug, bluealsa-aplay fails with "Set sample rate: Invalid argument: 48000".
 Set `VERBOSE=true` in docker-compose.yml to see full output from all subprocesses (dbus-daemon,
 bluetoothed, bluealsad, bluealsa-aplay, expect agent). In normal mode, only key events are
 logged with a `[bt-receiver]` prefix: startup steps, device connect/disconnect, volume changes,
-process restarts.
+now playing, process restarts.
 
 ### Single-device enforcer
 Polls `bluetoothctl devices Connected` every 2 seconds. If >1 device connected, identifies
 which is new (wasn't in previous poll) and disconnects the rest. Prevents audio conflicts. Also logs connections, disconnections, and evictions with resolved
 device names.
 
-### Volume monitoring
-A background loop polls the softvol `Bluetooth` mixer every 2 seconds and logs percentage
-changes: `[bt-receiver] Volume changed: 75%`.
+### Volume + now-playing monitor
+A background loop polls the softvol `Bluetooth` mixer and AVRCP `MediaPlayer1` D-Bus interface
+every 2 seconds. Logs volume changes with the source device name and track changes with
+artist/title:
+```
+[bt-receiver] Volume: 75% (Samsung Galaxy S25)
+[bt-receiver] Now playing: Architects — Doomsday (Samsung Galaxy S25)
+```
+Initial volume is configurable via `INIT_VOLUME` (default 50%).
 
 ### mknod after modprobe
 After `modprobe snd-aloop`, iterates `/sys/class/sound/*`, reads major:minor from each
@@ -135,7 +141,7 @@ git pull && docker build -t pinkynrg/bluetooth-receiver:latest . \
 - `privileged: true` (BT adapter + kernel modules)
 - `network_mode: host` (BT + TCP server)
 - Volume: `bluetooth-data:/var/lib/bluetooth` (pairing keys persist across restarts)
-- Env: `DEVICE_NAME` (BT advertised name), `VERBOSE` (true/false, default false)
+- Env: `DEVICE_NAME` (BT advertised name), `VERBOSE` (true/false, default false), `INIT_VOLUME` (0–100, default 50)
 
 ## Hardware
 

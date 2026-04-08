@@ -5,6 +5,7 @@ set -e
 # ─── Config ──────────────────────────────────────────────────────────
 DEVICE_NAME="${DEVICE_NAME:-Snapcast Receiver}"
 VERBOSE="${VERBOSE:-false}"
+INIT_VOLUME="${INIT_VOLUME:-50}"
 
 # ─── Logging ─────────────────────────────────────────────────────────
 # Consistent format: [bt-receiver] message
@@ -217,15 +218,51 @@ get_dev_name() { bluetoothctl info "$1" 2>/dev/null | grep "Name:" | sed 's/.*Na
     done
 ) &
 
-# ── Volume monitor ──
-# Polls the softvol "Bluetooth" mixer and logs when volume changes.
+# ── Now-playing + volume monitor ──
+# Polls mixer for volume changes, and AVRCP MediaPlayer1 for track info.
+# Logs: device name, volume %, artist — title (or "unknown").
+get_now_playing() {
+    local mac="$1"
+    local dev_path="/org/bluez/hci0/dev_${mac//:/_}"
+    local player_path="${dev_path}/player0"
+    local props
+    props=$(dbus-send --system --dest=org.bluez --print-reply "$player_path" \
+        org.freedesktop.DBus.Properties.GetAll string:org.bluez.MediaPlayer1 2>/dev/null) || return 1
+    local artist title
+    artist=$(echo "$props" | grep -A2 '"Artist"' | grep 'variant' | sed 's/.*string "//;s/"$//')
+    title=$(echo "$props" | grep -A2 '"Title"' | grep 'variant' | sed 's/.*string "//;s/"$//')
+    if [ -n "$title" ]; then
+        [ -n "$artist" ] && echo "$artist — $title" || echo "$title"
+    fi
+}
 (
     PREV_VOL=""
+    PREV_TRACK=""
     while true; do
+        # Get connected device for context
+        CON_MAC=$(bluetoothctl devices Connected 2>/dev/null | awk '{print $2}' | grep -E '^([0-9A-F]{2}:){5}[0-9A-F]{2}$' | head -1)
+        CON_NAME=""
+        if [ -n "$CON_MAC" ]; then
+            CON_NAME=$(get_dev_name "$CON_MAC")
+        fi
+        DEV_LABEL="${CON_NAME:-unknown}"
+
+        # Volume
         CURR_VOL=$(amixer -c Loopback sget 'Bluetooth' 2>/dev/null | grep -o '[0-9]*%' | head -1)
         if [ -n "$CURR_VOL" ] && [ "$CURR_VOL" != "$PREV_VOL" ]; then
-            [ -n "$PREV_VOL" ] && log "Volume changed: $CURR_VOL"
+            [ -n "$PREV_VOL" ] && log "Volume: $CURR_VOL ($DEV_LABEL)"
             PREV_VOL="$CURR_VOL"
+        fi
+
+        # Now playing
+        if [ -n "$CON_MAC" ]; then
+            CURR_TRACK=$(get_now_playing "$CON_MAC" 2>/dev/null)
+            if [ -n "$CURR_TRACK" ] && [ "$CURR_TRACK" != "$PREV_TRACK" ]; then
+                log "Now playing: $CURR_TRACK ($DEV_LABEL)"
+                PREV_TRACK="$CURR_TRACK"
+            fi
+        else
+            PREV_TRACK=""
         fi
         sleep 2
     done
@@ -238,7 +275,8 @@ log "Starting audio routing..."
 # Initialize softvol mixer control with a dummy write (must happen before bluealsa-aplay)
 aplay -D loopout -d 1 /dev/zero 2>/dev/null || true
 sleep 1
-amixer -c Loopback -q set 'Bluetooth' 50% 2>/dev/null || true
+amixer -c Loopback -q set 'Bluetooth' "${INIT_VOLUME}%" 2>/dev/null || true
+log "Initial volume: ${INIT_VOLUME}%"
 
 # Drain: continuously read loopback capture → /dev/null to prevent buffer stall
 arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw /dev/null 2>/dev/null &

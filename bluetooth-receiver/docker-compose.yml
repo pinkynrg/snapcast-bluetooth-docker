@@ -7,9 +7,11 @@ services:
     volumes:
       - /lib/modules:/lib/modules:ro
       - bluetooth-data:/var/lib/bluetooth
+
     environment:
       - DEVICE_NAME=Snapcast Receiver
       - VERBOSE=false
+      - INIT_VOLUME=50
     restart: always
 
 volumes:
