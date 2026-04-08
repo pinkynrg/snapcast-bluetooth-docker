@@ -20,6 +20,15 @@ echo "[2/7] Loading ALSA loopback..."
 lsmod | grep -q snd_aloop || modprobe snd-aloop pcm_substreams=1
 for i in $(seq 1 10); do aplay -l 2>/dev/null | grep -q Loopback && break; sleep 1; done
 
+# Create any missing /dev/snd/ nodes (Docker snapshots /dev at start, before modprobe)
+for dev in /sys/class/sound/*; do
+    name=$(basename "$dev")
+    if [ -f "$dev/dev" ] && [ ! -e "/dev/snd/$name" ]; then
+        IFS=: read -r major minor < "$dev/dev"
+        mknod "/dev/snd/$name" c "$major" "$minor" 2>/dev/null || true
+    fi
+done
+
 # softvol: wraps loopback playback so bluealsa-aplay has a mixer for BT volume
 # dsnoop: allows drain + TCP server to share the capture side
 cat > /etc/asound.conf << 'EOF'
