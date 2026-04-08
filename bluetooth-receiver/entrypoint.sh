@@ -45,9 +45,10 @@ echo "D-Bus started"
 sleep 1
 
 # ─── 4. START BLUETOOTHD ─────────────────────────────────────────────
-/usr/libexec/bluetooth/bluetoothd &
+# Run in debug mode (-d) to see exactly why BlueZ releases the transport.
+/usr/libexec/bluetooth/bluetoothd -d --noplugin=hfp_hf,hfp_ag 2>&1 | while IFS= read -r line; do echo "[bluetoothd] $line"; done &
 BLUETOOTHD_PID=$!
-echo "bluetoothd started (PID: $BLUETOOTHD_PID)"
+echo "bluetoothd started in DEBUG mode (PID: $BLUETOOTHD_PID)"
 sleep 3
 
 # ─── 5. WAIT FOR CONTROLLER ─────────────────────────────────────────
@@ -142,40 +143,32 @@ AGENT_PID=$!
 echo "Auto-pair agent started"
 
 # ─── 8. CONNECTION MONITOR (dbus-monitor) ────────────────────────────
-# dbus-monitor doesn't need a TTY, runs forever, and reliably catches events.
+# Capture ALL D-Bus traffic on org.bluez to see exactly what happens.
 cat > /usr/local/bin/bt-monitor.sh << 'MONEOF'
 #!/bin/bash
 ts() { date "+%H:%M:%S.%3N"; }
 
-dbus-monitor --system "interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path_namespace=/org/bluez" 2>&1 | while IFS= read -r line; do
-    if echo "$line" | grep -q "path=/org/bluez/hci0/dev_"; then
-        current_mac=$(echo "$line" | grep -oP "dev_\K[A-F0-9_]+" | tr '_' ':')
-    fi
-    if echo "$line" | grep -q '"Connected"'; then
-        read -r val
-        if echo "$val" | grep -q "true"; then
-            echo "[$(ts)] BT Connected: ${current_mac:-unknown}"
-        elif echo "$val" | grep -q "false"; then
-            echo "[$(ts)] BT Disconnected: ${current_mac:-unknown}"
-        fi
-    fi
-    if echo "$line" | grep -q '"ServicesResolved"'; then
-        read -r val
-        if echo "$val" | grep -q "true"; then
-            echo "[$(ts)] BT ServicesResolved: ${current_mac:-unknown}"
-        fi
-    fi
-    if echo "$line" | grep -q '"State"'; then
-        read -r val
-        state=$(echo "$val" | grep -oP 'string "\K[^"]+')
-        [ -n "$state" ] && echo "[$(ts)] BT Transport state: $state (${current_mac:-unknown})"
-    fi
+# Monitor ALL BlueZ D-Bus signals (PropertiesChanged + method calls)
+dbus-monitor --system "path_namespace=/org/bluez" 2>&1 | while IFS= read -r line; do
+    echo "[$(ts)] [dbus] $line"
 done
 MONEOF
 chmod +x /usr/local/bin/bt-monitor.sh
 /usr/local/bin/bt-monitor.sh &
 MONITOR_PID=$!
-echo "Connection monitor started"
+echo "Connection monitor started (full D-Bus trace)"
+
+# ─── 8b. BTMON (HCI-level protocol trace) ────────────────────────────
+# btmon shows the actual HCI packets between Linux and the BT chip.
+# This will show auth failures, disconnection reason codes, etc.
+if command -v btmon >/dev/null 2>&1; then
+    btmon 2>&1 | while IFS= read -r line; do echo "[btmon] $line"; done &
+    BTMON_PID=$!
+    echo "btmon started (HCI trace, PID: $BTMON_PID)"
+else
+    echo "WARNING: btmon not found, no HCI-level tracing"
+    BTMON_PID=0
+fi
 
 sleep 2
 
@@ -249,7 +242,7 @@ DMESG_START=$(dmesg | wc -l)
 while true; do
     if ! kill -0 $BLUETOOTHD_PID 2>/dev/null; then
         echo "WATCHDOG: bluetoothd died, restarting..."
-        /usr/libexec/bluetooth/bluetoothd &
+        /usr/libexec/bluetooth/bluetoothd -d --noplugin=hfp_hf,hfp_ag 2>&1 | while IFS= read -r line; do echo "[bluetoothd] $line"; done &
         BLUETOOTHD_PID=$!
     fi
 
@@ -298,7 +291,7 @@ while true; do
         sleep 2
         
         echo "WATCHDOG: Hardware reset done, restarting services..."
-        /usr/libexec/bluetooth/bluetoothd &
+        /usr/libexec/bluetooth/bluetoothd -d --noplugin=hfp_hf,hfp_ag 2>&1 | while IFS= read -r line; do echo "[bluetoothd] $line"; done &
         BLUETOOTHD_PID=$!
         sleep 3
         
