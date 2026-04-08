@@ -90,9 +90,9 @@ echo "Bluetooth adapter ready"
 # ─── 6. START BLUEZ-ALSA ─────────────────────────────────────────────
 echo "[6/8] Starting bluez-alsa..."
 
-# bluealsa daemon: handles Bluetooth audio
-# --profile=a2dp-source: We're receiving audio FROM phones (A2DP source)
-bluealsa --profile=a2dp-source &
+# bluealsad daemon: handles Bluetooth audio
+# --profile=a2dp-snk: We act as A2DP sink (receiving audio FROM phones)
+bluealsad --profile=a2dp-snk &
 BLUEALSA_PID=$!
 sleep 2
 
@@ -124,7 +124,7 @@ bluetoothctl | while read -r line; do
             sleep 2  # Wait for A2DP profile to negotiate
             
             # Check if this device supports A2DP source profile
-            if bluealsa-cli list-pcms | grep -q "$MAC"; then
+            if bluealsactl list-pcms | grep -q "$MAC"; then
                 echo "[AutoRouter] A2DP source detected, starting playback..."
                 
                 # Kill any existing bluealsa-aplay for this device
@@ -201,8 +201,8 @@ while true; do
     fi
     
     if ! kill -0 $BLUEALSA_PID 2>/dev/null; then
-        echo "WATCHDOG: bluealsa died, restarting..."
-        bluealsa --profile=a2dp-source &
+        echo "WATCHDOG: bluealsad died, restarting..."
+        bluealsad --profile=a2dp-snk &
         BLUEALSA_PID=$!
     fi
     

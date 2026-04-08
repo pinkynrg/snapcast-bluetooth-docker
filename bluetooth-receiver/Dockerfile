@@ -36,7 +36,7 @@ RUN git clone --depth=1 https://github.com/Arkq/bluez-alsa.git /tmp/bluez-alsa &
     ldconfig && \
     cd / && rm -rf /tmp/bluez-alsa
 
-# Clean up build dependencies to reduce image size
+# Clean up build-only dependencies (keep runtime libs)
 RUN apt-get remove -y \
         git \
         build-essential \
@@ -44,11 +44,6 @@ RUN apt-get remove -y \
         autoconf \
         libtool \
         pkg-config \
-        libbluetooth-dev \
-        libasound2-dev \
-        libdbus-1-dev \
-        libglib2.0-dev \
-        libsbc-dev \
     && apt-get autoremove -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
