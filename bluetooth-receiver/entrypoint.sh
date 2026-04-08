@@ -109,26 +109,32 @@ BLUEALSA_PID=$!
 sleep 2
 kill -0 $BLUEALSA_PID 2>/dev/null || { echo "ERROR: bluealsad failed"; exit 1; }
 
-# Single-device enforcer: when a new device connects, disconnect the old one
+# Single-device enforcer: poll for multiple connections, keep only the newest
 (
-    LAST_MAC=""
-    dbus-monitor --system "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path_namespace=/org/bluez" 2>/dev/null | \
-    while read -r line; do
-        if echo "$line" | grep -q 'string "Connected"'; then
-            read -r _; read -r val
-            if echo "$val" | grep -q "boolean true"; then
-                # Find all connected devices
+    PREV_MACS=""
+    while true; do
+        CURR_MACS=$(bluetoothctl devices Connected 2>/dev/null | awk '{print $2}' | sort)
+        if [ "$CURR_MACS" != "$PREV_MACS" ] && [ -n "$CURR_MACS" ]; then
+            COUNT=$(echo "$CURR_MACS" | wc -w)
+            if [ "$COUNT" -gt 1 ]; then
+                # Find the new MAC (present now but not before)
                 NEW_MAC=""
-                for mac in $(bluetoothctl devices Connected 2>/dev/null | awk '{print $2}'); do
-                    if [ "$mac" != "$LAST_MAC" ] && [ -n "$LAST_MAC" ]; then
-                        echo "[SingleDevice] Disconnecting old device: $LAST_MAC"
-                        bluetoothctl disconnect "$LAST_MAC" 2>/dev/null || true
-                    fi
-                    NEW_MAC="$mac"
+                for mac in $CURR_MACS; do
+                    echo "$PREV_MACS" | grep -q "$mac" || NEW_MAC="$mac"
                 done
-                [ -n "$NEW_MAC" ] && LAST_MAC="$NEW_MAC"
+                # Disconnect everything except the new device
+                if [ -n "$NEW_MAC" ]; then
+                    for mac in $CURR_MACS; do
+                        if [ "$mac" != "$NEW_MAC" ]; then
+                            echo "[SingleDevice] Disconnecting old device: $mac"
+                            bluetoothctl disconnect "$mac" 2>/dev/null || true
+                        fi
+                    done
+                fi
             fi
+            PREV_MACS="$CURR_MACS"
         fi
+        sleep 2
     done
 ) &
 
