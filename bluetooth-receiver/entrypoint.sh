@@ -121,39 +121,22 @@ fi
 
 echo "bluealsa daemon running (PID: $BLUEALSA_PID)"
 
-# ─── 7. START AUDIO PLAYBACK ──────────────────────────────────────────
-echo "[7/8] Starting audio routing..."
+# ─── 7. CONFIGURE ALSA ───────────────────────────────────────────────
+echo "[7/8] Configuring ALSA..."
 
-# The ALSA loopback requires BOTH sides open: playback (write) AND capture (read).
-# Without a reader on hw:Loopback,1,0, the internal buffer fills up in ~30s,
-# bluealsa-aplay stalls, the BT transport stalls, and the phone disconnects.
-# Start a drain process until Snapclient takes over the capture side.
-arecord -D plughw:Loopback,1,0 -f S16_LE -r 44100 -c 2 -t raw /dev/null &
-DRAIN_PID=$!
-echo "Loopback drain started (PID: $DRAIN_PID)"
-
-# bluealsa-aplay without a MAC address automatically handles ALL connecting
-# devices. --single-audio plays one device at a time. No custom router needed.
-bluealsa-aplay -D hw:Loopback,0,0 --single-audio 2>&1 | while read -r line; do
-    echo "[bluealsa-aplay] $line"
-done &
-APLAY_PID=$!
-echo "bluealsa-aplay started (PID: $APLAY_PID)"
-
-# ─── 8. CONFIGURE ALSA LOOPBACK ──────────────────────────────────────
-echo "[8/8] Configuring ALSA loopback..."
-
-# Create asound.conf to define a PCM device for Snapcast to capture from
+# asound.conf with dsnoop: allows multiple readers on loopback capture side
+# (drain process keeps buffer from stalling, TCP server streams to Snapserver)
 cat > /etc/asound.conf << 'EOF'
-# Loopback device configuration
-# bluealsa-aplay writes to hw:Loopback,0,0 (playback side)
-# Snapcast reads from hw:Loopback,1,0 (capture side)
-
-pcm.snapcast {
-    type hw
-    card Loopback
-    device 1
-    subdevice 0
+# dsnoop: shared capture device on loopback capture side
+pcm.loopin {
+    type dsnoop
+    ipc_key 12345
+    slave {
+        pcm "hw:Loopback,1,0"
+        format S16_LE
+        rate 44100
+        channels 2
+    }
 }
 
 pcm.!default {
@@ -163,16 +146,44 @@ pcm.!default {
 }
 EOF
 
-# Set loopback volume to 100%
 amixer -c Loopback -q set 'PCM' 100% unmute 2>/dev/null || true
+echo "ALSA configured"
 
-echo "ALSA loopback configured for Snapcast"
+# ─── 8. START AUDIO ROUTING + TCP STREAM ──────────────────────────────
+echo "[8/8] Starting audio routing..."
+
+# Drain: always read loopback capture to prevent buffer stall.
+# Without this, if no TCP client is connected, the capture buffer fills,
+# bluealsa-aplay write-stalls, and BT disconnects.
+arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw /dev/null 2>/dev/null &
+DRAIN_PID=$!
+echo "Loopback drain started (PID: $DRAIN_PID)"
+
+# bluealsa-aplay: routes BT audio to ALSA loopback playback side
+bluealsa-aplay -D hw:Loopback,0,0 --single-audio 2>&1 | while read -r line; do
+    echo "[bluealsa-aplay] $line"
+done &
+APLAY_PID=$!
+echo "bluealsa-aplay started (PID: $APLAY_PID)"
+
+# TCP audio server on port 4953 for Snapserver (mode=client connects here).
+# socat spawns arecord on connection; loop handles reconnections.
+(
+    while true; do
+        echo "[TCP] Waiting for Snapserver on port 4953..."
+        socat TCP-LISTEN:4953,reuseaddr EXEC:"arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw 2>/dev/null"
+        echo "[TCP] Connection closed, restarting..."
+        sleep 1
+    done
+) &
+TCP_PID=$!
+echo "TCP audio server on port 4953 (PID: $TCP_PID)"
 
 # ─── 9. READY ───────────────────────────────────────────────────────
 echo "========================================="
 echo "Bluetooth receiver ready!"
 echo "Device name: ${DEVICE_NAME}"
-echo "ALSA device: hw:Loopback,1,0 (capture for Snapcast)"
+echo "TCP stream: port 4953 (for Snapserver)"
 echo ""
 echo "Pair your phone and play audio"
 echo "========================================="
@@ -197,6 +208,25 @@ while true; do
             echo "[bluealsa-aplay] $line"
         done &
         APLAY_PID=$!
+    fi
+    
+    if ! kill -0 $DRAIN_PID 2>/dev/null; then
+        echo "WATCHDOG: drain died, restarting..."
+        arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw /dev/null 2>/dev/null &
+        DRAIN_PID=$!
+    fi
+    
+    if ! kill -0 $TCP_PID 2>/dev/null; then
+        echo "WATCHDOG: TCP server died, restarting..."
+        (
+            while true; do
+                echo "[TCP] Waiting for Snapserver on port 4953..."
+                socat TCP-LISTEN:4953,reuseaddr EXEC:"arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw 2>/dev/null"
+                echo "[TCP] Connection closed, restarting..."
+                sleep 1
+            done
+        ) &
+        TCP_PID=$!
     fi
     
     # Re-enable discoverable if needed

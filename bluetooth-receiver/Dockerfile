@@ -51,6 +51,9 @@ RUN apt-get remove -y \
 # Load ALSA loopback kernel module support
 RUN echo "snd-aloop" >> /etc/modules
 
+# Install additional runtime tools (separate layer to preserve cache)
+RUN apt-get update && apt-get install -y --no-install-recommends socat && rm -rf /var/lib/apt/lists/*
+
 # Copy entrypoint script
 COPY entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
