@@ -1,0 +1,200 @@
+[14:00:54] [btmon]             Minimum Bitpool: 2
+[14:00:54] [btmon]             Maximum Bitpool: 39
+[14:00:54] [btmon]         Service Category: Delay Reporting (0x08)
+[14:00:54] [btmon] > HCI Event: Number of Completed Packets (0x13) plen 5    #109 [hci0] 11.430497
+[14:00:54] [btmon]         Num handles: 1
+[14:00:54] [btmon]         Handle: 12 Address: D0:56:FB:19:B7:16 (Samsung Electronics Co.,Ltd)
+[14:00:54] [btmon]         Count: 2
+[14:00:54] [btmon]       AVDTP: Get All Capabilities (0x0c) Command (0x00) type 0x00 label 4 nosp 0
+[14:00:54] [btmon]         ACP SEID: 7
+[14:00:54] [btmon]       AVDTP: Get All Capabilities (0x0c) Response Accept (0x02) type 0x00 label 4 nosp 0
+[14:00:54] [btmon]         Service Category: Media Transport (0x01)
+[14:00:54] [btmon]         Service Category: Media Codec (0x07)
+[14:00:54] [btmon]           Media Type: Audio (0x00)
+[14:00:54] [btmon]           Media Codec: SBC (0x00)
+[14:00:54] [btmon]             Frequency: 0x30
+[14:00:54] [btmon]               44100
+[14:00:54] [btmon]               48000
+[14:00:54] [btmon]             Channel Mode: 0x04
+[14:00:54] [btmon]               Dual Channel
+[14:00:54] [btmon]             Block Length: 0x10
+[14:00:54] [btmon]               16
+[14:00:54] [btmon]             Subbands: 0x04
+[14:00:54] [btmon]               8
+[14:00:54] [btmon]             Allocation Method: 0x01
+[14:00:54] [btmon]               Loudness
+[14:00:54] [btmon]             Minimum Bitpool: 2
+[14:00:54] [btmon]             Maximum Bitpool: 43
+[14:00:54] [btmon]         Service Category: Delay Reporting (0x08)
+[14:00:54] [btmon]       AVDTP: Set Configuration (0x03) Command (0x00) type 0x00 label 5 nosp 0
+[14:00:54] [btmon]         ACP SEID: 1
+[14:00:54] [btmon]         INT SEID: 1
+[14:00:54] [btmon]         Service Category: Media Transport (0x01)
+[14:00:54] [btmon]         Service Category: Media Codec (0x07)
+[14:00:54] [btmon]           Media Type: Audio (0x00)
+[14:00:54] [btmon]           Media Codec: SBC (0x00)
+[14:00:54] [btmon]             Frequency: 44100 (0x20)
+[14:00:54] [btmon]             Channel Mode: Joint Stereo (0x01)
+[14:00:54] [btmon]             Block Length: 16 (0x10)
+[14:00:54] [btmon]             Subbands: 8 (0x04)
+[14:00:54] [btmon]             Allocation Method: Loudness (0x01)
+[14:00:54] [btmon]             Minimum Bitpool: 2
+[14:00:54] [btmon]             Maximum Bitpool: 53
+[14:00:54] [btmon]         Service Category: Delay Reporting (0x08)
+[14:00:54] [btmon]       AVDTP: Set Configuration (0x03) Response Accept (0x02) type 0x00 label 5 nosp 0
+[14:00:54] [btmon]       AVDTP: Delay Report (0x0d) Command (0x00) type 0x00 label 0 nosp 0
+[14:00:54] [btmon]         ACP SEID: 1
+[14:00:54] [btmon]         Delay: 0.0ms
+[14:00:54] [btmon] > HCI Event: Number of Completed Packets (0x13) plen 5    #115 [hci0] 11.467999
+[14:00:54] [btmon]         Num handles: 1
+[14:00:54] [btmon]         Handle: 12 Address: D0:56:FB:19:B7:16 (Samsung Electronics Co.,Ltd)
+[14:00:54] [btmon]         Count: 2
+[14:00:54] [btmon]       AVDTP: Open (0x06) Command (0x00) type 0x00 label 6 nosp 0
+[14:00:55] [btmon]         ACP SEID: 1
+[14:00:55] [btmon]       AVDTP: Delay Report (0x0d) Response Accept (0x02) type 0x00 label 0 nosp 0
+[14:00:55] [btmon]       AVDTP: Open (0x06) Response Accept (0x02) type 0x00 label 6 nosp 0
+[14:00:55] [btmon] > HCI Event: Number of Completed Packets (0x13) plen 5    #119 [hci0] 11.475509
+[14:00:55] [btmon]         Num handles: 1
+[14:00:55] [btmon]         Handle: 12 Address: D0:56:FB:19:B7:16 (Samsung Electronics Co.,Ltd)
+[14:00:55] [btmon]         Count: 2
+[14:00:55] [btmon]       L2CAP: Connection Request (0x02) ident 15 len 4
+[14:00:55] [btmon]         PSM: 25 (0x0019)
+[14:00:55] [btmon]         Source CID: 83
+[14:00:55] [btmon]       L2CAP: Connection Response (0x03) ident 15 len 8
+[14:00:55] [btmon]         Destination CID: 65
+[14:00:55] [btmon]         Source CID: 83
+[14:00:55] [btmon]         Result: Connection pending (0x0001)
+[14:00:55] [btmon]         Status: Authorization pending (0x0002)
+[14:00:55] [btmon]       L2CAP: Connection Response (0x03) ident 15 len 8
+[14:00:55] [btmon]         Destination CID: 65
+[14:00:55] [btmon]         Source CID: 83
+[14:00:55] [btmon]         Result: Connection successful (0x0000)
+[14:00:55] [btmon]         Status: No further information available (0x0000)
+[14:00:55] [btmon]       L2CAP: Configure Request (0x04) ident 7 len 15
+[14:00:55] [btmon]         Destination CID: 83
+[14:00:55] [btmon]         Flags: 0x0000
+[14:00:55] [btmon]         Option: Retransmission and Flow Control (0x04) [mandatory]
+[14:00:55] [btmon]           Mode: Basic (0x00)
+[14:00:55] [btmon]           TX window size: 0
+[14:00:55] [btmon]           Max transmit: 0
+[14:00:55] [btmon]           Retransmission timeout: 0
+[14:00:55] [btmon]           Monitor timeout: 0
+[14:00:55] [btmon]           Maximum PDU size: 0
+[14:00:55] [btmon]       L2CAP: Configure Request (0x04) ident 16 len 8
+[14:00:55] [btmon]         Destination CID: 65
+[14:00:55] [btmon]         Flags: 0x0000
+[14:00:55] [btmon]         Option: Maximum Transmission Unit (0x01) [mandatory]
+[14:00:55] [btmon]           MTU: 1024
+[14:00:55] [btmon]       L2CAP: Configure Response (0x05) ident 16 len 10
+[14:00:55] [btmon]         Source CID: 83
+[14:00:55] [btmon]         Flags: 0x0000
+[14:00:55] [btmon]         Result: Success (0x0000)
+[14:00:55] [btmon]         Option: Maximum Transmission Unit (0x01) [mandatory]
+[14:00:55] [btmon]           MTU: 1024
+[14:00:55] [btmon] > HCI Event: Number of Completed Packets (0x13) plen 5    #126 [hci0] 11.530460
+[14:00:55] [btmon]         Num handles: 1
+[14:00:55] [btmon]         Handle: 12 Address: D0:56:FB:19:B7:16 (Samsung Electronics Co.,Ltd)
+[14:00:55] [btmon]         Count: 2
+[14:00:55] [btmon] > HCI Event: Number of Completed Packets (0x13) plen 5    #127 [hci0] 11.532994
+[14:00:55] [btmon]         Num handles: 1
+[14:00:55] [btmon]         Handle: 12 Address: D0:56:FB:19:B7:16 (Samsung Electronics Co.,Ltd)
+[14:00:55] [btmon]         Count: 2
+[14:00:55] [btmon]       L2CAP: Configure Response (0x05) ident 7 len 6
+[14:00:55] [btmon]         Source CID: 65
+[14:00:55] [btmon]         Flags: 0x0000
+[14:00:55] [btmon]         Result: Success (0x0000)
+[14:00:55] [btmon]       AVDTP: Start (0x07) Command (0x00) type 0x00 label 7 nosp 0
+[14:00:55] [btmon]         ACP SEID: 1
+[14:00:55] [btmon]       AVDTP: Start (0x07) Response Accept (0x02) type 0x00 label 7 nosp 0
+[14:00:55] [btmon] = bluetoothd[22]: /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0: fd(2..   13.423818
+[14:00:55] [btmon] > HCI Event: Number of Completed Packets (0x13) plen 5    #135 [hci0] 13.579782
+[14:00:55] [btmon]         Num handles: 1
+[14:00:55] [btmon]         Handle: 12 Address: D0:56:FB:19:B7:16 (Samsung Electronics Co.,Ltd)
+[14:00:55] [btmon]         Count: 1
+[14:00:55] [btmon]       L2CAP: Connection Request (0x02) ident 17 len 4
+[14:00:55] [btmon]         PSM: 1 (0x0001)
+[14:00:55] [btmon]         Source CID: 84
+[14:00:55] [btmon]       L2CAP: Connection Response (0x03) ident 17 len 8
+[14:00:55] [btmon]         Destination CID: 66
+[14:00:55] [btmon]         Source CID: 84
+[14:00:55] [btmon]         Result: Connection successful (0x0000)
+[14:00:55] [btmon]         Status: No further information available (0x0000)
+[14:00:55] [btmon]       L2CAP: Configure Request (0x04) ident 8 len 15
+[14:00:55] [btmon]         Destination CID: 84
+[14:00:55] [btmon]         Flags: 0x0000
+[14:00:55] [btmon]         Option: Retransmission and Flow Control (0x04) [mandatory]
+[14:00:55] [btmon]           Mode: Basic (0x00)
+[14:00:55] [btmon]           TX window size: 0
+[14:00:55] [btmon]           Max transmit: 0
+[14:00:55] [btmon]           Retransmission timeout: 0
+[14:00:55] [btmon]           Monitor timeout: 0
+[14:00:55] [btmon]           Maximum PDU size: 0
+[14:00:55] [btmon] > HCI Event: Number of Completed Packets (0x13) plen 5    #272 [hci0] 15.101688
+[14:00:55] [btmon]         Num handles: 1
+[14:00:55] [btmon]         Handle: 12 Address: D0:56:FB:19:B7:16 (Samsung Electronics Co.,Ltd)
+[14:00:55] [btmon]         Count: 2
+[14:00:55] [btmon]       L2CAP: Configure Request (0x04) ident 18 len 8
+[14:00:55] [btmon]         Destination CID: 66
+[14:00:55] [btmon]         Flags: 0x0000
+[14:00:55] [btmon]         Option: Maximum Transmission Unit (0x01) [mandatory]
+[14:00:55] [btmon]           MTU: 1024
+[14:00:55] [btmon]       L2CAP: Configure Response (0x05) ident 18 len 10
+[14:00:55] [btmon]         Source CID: 84
+[14:00:55] [btmon]         Flags: 0x0000
+[14:00:55] [btmon]         Result: Success (0x0000)
+[14:00:55] [btmon]         Option: Maximum Transmission Unit (0x01) [mandatory]
+[14:00:55] [btmon]           MTU: 1024
+[14:00:55] [btmon]       L2CAP: Configure Response (0x05) ident 8 len 6
+[14:00:55] [btmon]         Source CID: 66
+[14:00:55] [btmon]         Flags: 0x0000
+[14:00:55] [btmon]         Result: Success (0x0000)
+[14:00:55] [btmon]       SDP: Service Search Attribute Request (0x06) tid 0 len 19
+[14:00:55] [btmon]         Search pattern: [len 5]
+[14:00:55] [btmon]           Sequence (6) with 3 bytes [8 extra bits] len 5
+[14:00:55] [btmon]             UUID (3) with 2 bytes [0 extra bits] len 3
+[14:00:55] [btmon]               A/V Remote Control (0x110e)
+[14:00:55] [btmon]         Max record count: 1008
+[14:00:55] [btmon]         Attribute list: [len 11]
+[14:00:55] [btmon]           Sequence (6) with 9 bytes [8 extra bits] len 11
+[14:00:55] [btmon]             Unsigned Integer (1) with 2 bytes [0 extra bits] len 3
+[14:00:55] [btmon]               0x0001
+[14:00:55] [btmon]             Unsigned Integer (1) with 2 bytes [0 extra bits] len 3
+[14:00:55] [btmon]               0x0009
+[14:00:55] [btmon]             Unsigned Integer (1) with 2 bytes [0 extra bits] len 3
+[14:00:55] [btmon]               0x0311
+[14:00:55] [btmon]         Continuation state: 0
+[14:00:55] [btmon]       SDP: Service Search Attribute Response (0x07) tid 0 len 5
+[14:00:55] [btmon]         Attribute bytes: 2
+[14:00:55] [btmon]         Continuation state: 0
+[14:00:55] [btmon] > HCI Event: Number of Completed Packets (0x13) plen 5    #283 [hci0] 15.147941
+[14:00:55] [btmon]         Num handles: 1
+[14:00:55] [btmon]         Handle: 12 Address: D0:56:FB:19:B7:16 (Samsung Electronics Co.,Ltd)
+[14:00:55] [btmon]         Count: 2
+[14:00:55] [btmon]       L2CAP: Disconnection Request (0x06) ident 19 len 4
+[14:00:55] [btmon]         Destination CID: 66
+[14:00:55] [btmon]         Source CID: 84
+[14:00:55] [btmon]       L2CAP: Disconnection Response (0x07) ident 19 len 4
+[14:00:55] [btmon]         Destination CID: 66
+[14:00:55] [btmon]         Source CID: 84
+[14:00:55] [btmon] > HCI Event: Number of Completed Packets (0x13) plen 5    #300 [hci0] 15.329757
+[14:00:55] [btmon]         Num handles: 1
+[14:00:55] [btmon]         Handle: 12 Address: D0:56:FB:19:B7:16 (Samsung Electronics Co.,Ltd)
+[14:00:55] [btmon]         Count: 1
+[14:00:55] WATCHDOG: Bluetooth audio router died, restarting...
+[14:01:04] WATCHDOG: Bluetooth audio router died, restarting...
+[14:01:05] [14:01:05.459] [dbus] === hci0/dev_D0_56_FB_19_B7_16/fd0: org.bluez.MediaTransport1 ===
+[14:01:05] [14:01:05.668] [dbus]   value: string "org.bluez.MediaTransport1"
+[14:01:05] [14:01:05.753] [dbus]   property: State
+[14:01:05] [14:01:05.796] [dbus]   property: idle
+[14:01:05] [14:01:05.816] [dbus]   value: variant             string "idle"
+[14:01:15] WATCHDOG: Bluetooth audio router died, restarting...
+[14:01:26] WATCHDOG: Bluetooth audio router died, restarting...
+[14:01:36] WATCHDOG: Bluetooth audio router died, restarting...
+[14:01:46] WATCHDOG: Bluetooth audio router died, restarting...
+[14:01:56] WATCHDOG: Bluetooth audio router died, restarting...
+[14:02:06] WATCHDOG: Bluetooth audio router died, restarting...
+[14:02:16] WATCHDOG: Bluetooth audio router died, restarting...
+[14:02:27] WATCHDOG: Bluetooth audio router died, restarting...
+[14:02:37] WATCHDOG: Bluetooth audio router died, restarting...
+[14:02:48] WATCHDOG: Bluetooth audio router died, restarting...
+[14:02:58] WATCHDOG: Bluetooth audio router died, restarting...

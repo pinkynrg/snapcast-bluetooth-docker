@@ -1,0 +1,200 @@
+D: [pulseaudio] module-bluez5-device.c: Trying to create profile headset_audio_gateway (00001112-0000-1000-8000-00805f9b34fb) for device S25 di Francesco (D0:56:FB:19:B7:16)
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile headset_audio_gateway: false
+D: [pulseaudio] module-bluez5-device.c: headset_audio_gateway is not supported by the device or adapter
+D: [pulseaudio] module-bluez5-device.c: Trying to create profile handsfree_audio_gateway (0000111f-0000-1000-8000-00805f9b34fb) for device S25 di Francesco (D0:56:FB:19:B7:16)
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile handsfree_audio_gateway: false
+D: [pulseaudio] module-bluez5-device.c: handsfree_audio_gateway is not supported by the device or adapter
+D: [pulseaudio] card.c: Looking for initial profile for card bluez_card.D0_56_FB_19_B7_16
+D: [pulseaudio] card.c: a2dp_source availability unknown
+D: [pulseaudio] card.c: off availability yes
+I: [pulseaudio] card.c: bluez_card.D0_56_FB_19_B7_16: active_profile: a2dp_source
+I: [pulseaudio] card.c: Created 0 "bluez_card.D0_56_FB_19_B7_16"
+D: [pulseaudio] module-bluez5-device.c: Acquiring transport /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0
+I: [pulseaudio] bluez5-util.c: Failed optional acquire of unavailable transport /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0
+I: [pulseaudio] a2dp-codec-sbc.c: SBC parameters: allocation=Loudness, subbands=8, blocks=16, mode=JointStereo bitpool=2 codesize=512 frame_length=17
+I: [pulseaudio] source.c: Created source 1 "bluez_source.D0_56_FB_19_B7_16.a2dp_source" with sample spec s16le 2ch 44100Hz and channel map front-left,front-right
+I: [pulseaudio] source.c:     bluetooth.protocol = "a2dp_source"
+I: [pulseaudio] source.c:     bluetooth.codec = "sbc"
+I: [pulseaudio] source.c:     device.description = "S25 di Francesco"
+I: [pulseaudio] source.c:     device.string = "D0:56:FB:19:B7:16"
+I: [pulseaudio] source.c:     device.api = "bluez"
+I: [pulseaudio] source.c:     device.class = "sound"
+I: [pulseaudio] source.c:     device.bus = "bluetooth"
+I: [pulseaudio] source.c:     device.form_factor = "phone"
+I: [pulseaudio] source.c:     bluez.path = "/org/bluez/hci0/dev_D0_56_FB_19_B7_16"
+I: [pulseaudio] source.c:     bluez.class = "0x5a020c"
+I: [pulseaudio] source.c:     bluez.alias = "S25 di Francesco"
+I: [pulseaudio] source.c:     device.icon_name = "audio-card-bluetooth"
+D: [pulseaudio] module-bluez5-device.c: bluez_source.D0_56_FB_19_B7_16.a2dp_source: Attaching volume hook to notify peer of changes
+D: [pulseaudio] bluez5-util.c: Sending A2DP volume 127/127 to peer
+D: [bluetooth] module-bluez5-device.c: IO Thread starting up
+D: [bluetooth] util.c: SCHED_RR|SCHED_RESET_ON_FORK worked.
+I: [bluetooth] util.c: Successfully enabled SCHED_RR scheduling for thread, with priority 5.
+D: [pulseaudio] source.c: bluez_source.D0_56_FB_19_B7_16.a2dp_source: state: INIT -> SUSPENDED
+D: [pulseaudio] source-output.c: Negotiated format: pcm, format.sample_format = "\"s16le\""  format.rate = "44100"  format.channels = "2"  format.channel_map = "\"front-left,front-right\""
+D: [pulseaudio] memblockq.c: memblockq requested: maxlength=33554432, tlength=0, base=4, prebuf=0, minreq=1 maxrewind=0
+D: [pulseaudio] memblockq.c: memblockq sanitized: maxlength=33554432, tlength=33554432, base=4, prebuf=0, minreq=4 maxrewind=0
+I: [pulseaudio] source-output.c: Created output 1 "(null)" on bluez_source.D0_56_FB_19_B7_16.a2dp_source with sample spec s16le 2ch 44100Hz and channel map front-left,front-right
+I: [pulseaudio] source-output.c:     media.role = "abstract"
+D: [pulseaudio] sink-input.c: Negotiated format: pcm, format.sample_format = "\"s16le\""  format.rate = "44100"  format.channels = "2"  format.channel_map = "\"front-left,front-right\""
+D: [pulseaudio] resampler.c: Resampler:
+D: [pulseaudio] resampler.c:   rate 44100 -> 44100 (method speex-float-1)
+D: [pulseaudio] resampler.c:   format s16le -> s16le (intermediate float32le)
+D: [pulseaudio] resampler.c:   channels 2 -> 2 (resampling 2)
+I: [pulseaudio] speex.c: Choosing speex quality setting 1.
+D: [pulseaudio] memblockq.c: memblockq requested: maxlength=33554432, tlength=0, base=4, prebuf=0, minreq=1 maxrewind=0
+D: [pulseaudio] memblockq.c: memblockq sanitized: maxlength=33554432, tlength=33554432, base=4, prebuf=0, minreq=4 maxrewind=0
+D: [pulseaudio] memblockq.c: memblockq requested: maxlength=33554432, tlength=0, base=4, prebuf=0, minreq=1 maxrewind=0
+D: [pulseaudio] memblockq.c: memblockq sanitized: maxlength=33554432, tlength=33554432, base=4, prebuf=0, minreq=4 maxrewind=0
+I: [pulseaudio] sink-input.c: Created input 1 "(null)" on tcp_out with sample spec s16le 2ch 44100Hz and channel map front-left,front-right
+I: [pulseaudio] sink-input.c:     media.role = "music"
+I: [pulseaudio] module-loopback.c: Minimum possible end to end latency: 279.25 ms
+W: [pulseaudio] module-loopback.c: Configured latency of 200.00 ms is smaller than minimum latency, using minimum instead
+W: [pulseaudio] module-loopback.c: Cannot set requested source latency of 66.67 ms, adjusting to 250.00 ms
+D: [pulseaudio] memblockq.c: memblockq requested: maxlength=33554432, tlength=33554432, base=4, prebuf=0, minreq=0 maxrewind=0
+D: [pulseaudio] memblockq.c: memblockq sanitized: maxlength=33554432, tlength=33554432, base=4, prebuf=0, minreq=4 maxrewind=0
+I: [null-sink] module-loopback.c: Max request changed
+I: [null-sink] module-loopback.c: Max request changed
+I: [pulseaudio] module.c: Loaded "module-loopback" (index: #7; argument: "source="bluez_source.D0_56_FB_19_B7_16.a2dp_source" source_dont_move="true" sink_input_properties="media.role=music"").
+I: [pulseaudio] module-bluez5-device.c: Bluez5 device message handler registered at path: /card/bluez_card.D0_56_FB_19_B7_16/bluez
+I: [pulseaudio] module.c: Loaded "module-bluez5-device" (index: #6; argument: "path=/org/bluez/hci0/dev_D0_56_FB_19_B7_16 autodetect_mtu=0 output_rate_refresh_interval_ms=500 avrcp_absolute_volume=1").
+D: [pulseaudio] bluez5-util.c: Transport /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0 available for profile a2dp_source
+I: [pulseaudio] bluez5-util.c: Selected codec: sbc
+D: [pulseaudio] bluez5-util.c: Properties changed in transport /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0
+D: [pulseaudio] bluez5-util.c: Transport property State changed
+D: [pulseaudio] bluez5-util.c: Transport /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0 state: idle -> playing
+D: [pulseaudio] card.c: Setting card bluez_card.D0_56_FB_19_B7_16 profile a2dp_source to availability status yes
+D: [pulseaudio] device-port.c: Setting port phone-input to status yes
+D: [pulseaudio] module-bluez5-device.c: Acquiring transport /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0
+I: [pulseaudio] module-bluez5-device.c: Transport /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0 acquired: fd 22
+D: [pulseaudio] module-bluez5-device.c: Resuming source bluez_source.D0_56_FB_19_B7_16.a2dp_source because its transport state changed to playing
+I: [bluetooth] module-bluez5-device.c: Transport /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0 resuming
+D: [bluetooth] module-bluez5-device.c: Stream properly set up, we're ready to roll!
+D: [pulseaudio] source.c: bluez_source.D0_56_FB_19_B7_16.a2dp_source: suspend_cause: USER -> (none)
+D: [pulseaudio] source.c: bluez_source.D0_56_FB_19_B7_16.a2dp_source: state: SUSPENDED -> RUNNING
+D: [null-sink] sink-input.c: Requesting rewind due to uncorking
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile a2dp_sink: false
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile a2dp_source: true
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile headset_head_unit: false
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile headset_audio_gateway: false
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile handsfree_head_unit: false
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile handsfree_audio_gateway: false
+D: [null-sink] module-null-sink.c: Requested to rewind 2576 bytes.
+D: [null-sink] sink.c: Processing rewind...
+D: [null-sink] sink-input.c: Have to rewind 920 bytes on render memblockq.
+D: [null-sink] source.c: Processing rewind...
+D: [null-sink] module-null-sink.c: Rewound 920 bytes.
+I: [null-sink] module-loopback.c: Adding 93832 usec of silence to queue
+D: [pulseaudio] bluez5-util.c: Properties changed in transport /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0
+D: [pulseaudio] bluez5-util.c: Transport property State changed
+I: [null-sink] module-loopback.c: Adding 5986 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14104 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14580 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Adding 14603 usec of silence to queue
+I: [null-sink] module-loopback.c: Dropping 75283 usec of audio from queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+D: [pulseaudio] bluez5-util.c: Properties changed in transport /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0
+D: [pulseaudio] bluez5-util.c: Transport property State changed
+D: [pulseaudio] bluez5-util.c: Transport /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0 state: playing -> idle
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+D: [pulseaudio] card.c: Setting card bluez_card.D0_56_FB_19_B7_16 profile a2dp_source to availability status unknown
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+D: [pulseaudio] module-bluetooth-policy.c: Setting card 'bluez_card.D0_56_FB_19_B7_16' to profile 'off'
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+D: [pulseaudio] source.c: bluez_source.D0_56_FB_19_B7_16.a2dp_source: state: RUNNING -> IDLE
+I: [pulseaudio] source-output.c: Freeing output 1 "Loopback to Null Output"
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [null-sink] module-loopback.c: Could not peek into queue
+I: [pulseaudio] sink-input.c: Freeing input 1 "Loopback from S25 di Francesco"
+D: [null-sink] module-null-sink.c: Requested to rewind 2576 bytes.
+D: [null-sink] sink.c: Processing rewind...
+D: [null-sink] sink-input.c: Have to rewind 228 bytes on render memblockq.
+D: [null-sink] source.c: Processing rewind...
+D: [null-sink] module-null-sink.c: Rewound 228 bytes.
+D: [pulseaudio] source.c: bluez_source.D0_56_FB_19_B7_16.a2dp_source: state: IDLE -> UNLINKED
+D: [bluetooth] module-bluez5-device.c: IO thread shutdown requested, stopping cleanly
+D: [bluetooth] module-bluez5-device.c: Releasing transport /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0
+I: [bluetooth] bluez5-util.c: Transport /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0 auto-released by BlueZ or already released
+D: [bluetooth] module-bluez5-device.c: Audio stream torn down
+D: [bluetooth] module-bluez5-device.c: IO thread shutting down
+I: [pulseaudio] source.c: Freeing source 1 "bluez_source.D0_56_FB_19_B7_16.a2dp_source"
+D: [pulseaudio] card.c: bluez_card.D0_56_FB_19_B7_16: active_profile: a2dp_source -> off
+D: [pulseaudio] device-port.c: Setting port phone-input to status unknown
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile a2dp_sink: false
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile a2dp_source: true
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile headset_head_unit: false
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile headset_audio_gateway: false
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile handsfree_head_unit: false
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile handsfree_audio_gateway: false
+I: [pulseaudio] module.c: Unloading "module-loopback" (index: #7).
+I: [pulseaudio] module.c: Unloaded "module-loopback" (index: #7).
+D: [pulseaudio] bluez5-util.c: dbus: path=/MediaEndpoint/A2DPSink/sbc, interface=org.bluez.MediaEndpoint1, member=ClearConfiguration
+D: [pulseaudio] bluez5-util.c: Clearing transport /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0 profile a2dp_source
+D: [pulseaudio] bluez5-util.c: Transport /org/bluez/hci0/dev_D0_56_FB_19_B7_16/fd0 state: idle -> disconnected
+D: [pulseaudio] card.c: Setting card bluez_card.D0_56_FB_19_B7_16 profile a2dp_source to availability status no
+D: [pulseaudio] device-port.c: Setting port phone-input to status no
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile a2dp_sink: false
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile a2dp_source: true
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile headset_head_unit: false
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile headset_audio_gateway: false
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile handsfree_head_unit: false
+D: [pulseaudio] bluez5-util.c: Checking if device S25 di Francesco (D0:56:FB:19:B7:16) supports profile handsfree_audio_gateway: false
+D: [pulseaudio] module-bluez5-discover.c: Unregistering module for /org/bluez/hci0/dev_D0_56_FB_19_B7_16
+D: [pulseaudio] module-bluez5-device.c: Unloading module for device /org/bluez/hci0/dev_D0_56_FB_19_B7_16
+I: [pulseaudio] module.c: Unloading "module-bluez5-device" (index: #6).
+I: [pulseaudio] card.c: Freed 0 "bluez_card.D0_56_FB_19_B7_16"
+I: [pulseaudio] module.c: Unloaded "module-bluez5-device" (index: #6).
+D: [pulseaudio] bluez5-util.c: Remote endpoint /org/bluez/hci0/dev_D0_56_FB_19_B7_16/sep1 was removed
+D: [pulseaudio] bluez5-util.c: Remote endpoint /org/bluez/hci0/dev_D0_56_FB_19_B7_16/sep2 was removed
+D: [pulseaudio] bluez5-util.c: Remote endpoint /org/bluez/hci0/dev_D0_56_FB_19_B7_16/sep3 was removed
+D: [pulseaudio] bluez5-util.c: Remote endpoint /org/bluez/hci0/dev_D0_56_FB_19_B7_16/sep4 was removed
+D: [pulseaudio] bluez5-util.c: Remote endpoint /org/bluez/hci0/dev_D0_56_FB_19_B7_16/sep5 was removed
+D: [pulseaudio] bluez5-util.c: Properties changed in device /org/bluez/hci0/dev_D0_56_FB_19_B7_16
