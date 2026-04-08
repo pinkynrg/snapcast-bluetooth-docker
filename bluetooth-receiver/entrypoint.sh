@@ -48,7 +48,7 @@ sleep 1
 # Run in debug mode (-d) to see exactly why BlueZ releases the transport.
 # Write to a log file and tail it — piping directly eats output.
 mkdir -p /var/log
-/usr/libexec/bluetooth/bluetoothd -d -n --noplugin=hfp_hf,hfp_ag >/var/log/bluetoothd.log 2>&1 &
+/usr/libexec/bluetooth/bluetoothd -d -n --noplugin=hfp_hf,hfp_ag,avrcp >/var/log/bluetoothd.log 2>&1 &
 BLUETOOTHD_PID=$!
 echo "bluetoothd started in DEBUG mode (PID: $BLUETOOTHD_PID)"
 tail -f /var/log/bluetoothd.log 2>/dev/null | while IFS= read -r line; do echo "[bluetoothd] $line"; done &
@@ -266,7 +266,7 @@ DMESG_START=$(dmesg | wc -l)
 while true; do
     if ! kill -0 $BLUETOOTHD_PID 2>/dev/null; then
         echo "WATCHDOG: bluetoothd died, restarting..."
-        /usr/libexec/bluetooth/bluetoothd -d -n --noplugin=hfp_hf,hfp_ag >/var/log/bluetoothd.log 2>&1 &
+        /usr/libexec/bluetooth/bluetoothd -d -n --noplugin=hfp_hf,hfp_ag,avrcp >/var/log/bluetoothd.log 2>&1 &
         BLUETOOTHD_PID=$!
         tail -f /var/log/bluetoothd.log 2>/dev/null | while IFS= read -r line; do echo "[bluetoothd] $line"; done &
     fi
@@ -316,7 +316,7 @@ while true; do
         sleep 2
         
         echo "WATCHDOG: Hardware reset done, restarting services..."
-        /usr/libexec/bluetooth/bluetoothd -d -n --noplugin=hfp_hf,hfp_ag >/var/log/bluetoothd.log 2>&1 &
+        /usr/libexec/bluetooth/bluetoothd -d -n --noplugin=hfp_hf,hfp_ag,avrcp >/var/log/bluetoothd.log 2>&1 &
         BLUETOOTHD_PID=$!
         tail -f /var/log/bluetoothd.log 2>/dev/null | while IFS= read -r line; do echo "[bluetoothd] $line"; done &
         sleep 3
