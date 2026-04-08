@@ -63,6 +63,10 @@ RUN sed -i 's,^source = .*,source = librespot:///librespot?name=Spotify\&devicen
 # Install ffmpeg for internet radio stream decoding
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 
+# Radio stream wrapper (avoids URL parsing issues with ffmpeg filter args)
+COPY play-radio.sh /usr/local/bin/play-radio.sh
+RUN chmod +x /usr/local/bin/play-radio.sh
+
 # Expose snapserver ports
 EXPOSE 1704/tcp 1705/tcp
 
