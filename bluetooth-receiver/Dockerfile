@@ -20,7 +20,7 @@ RUN apt-get update && \
         # Runtime tools
         dbus \
         alsa-utils \
-        expect \
+        bluez-tools \
         procps \
         iproute2 \
         ca-certificates \

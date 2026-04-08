@@ -70,22 +70,20 @@ echo "[5/8] Initializing Bluetooth adapter..."
 hciconfig hci0 up
 sleep 1
 
-# Start bluetoothctl with agent, keep it running forever via a FIFO.
-# The agent MUST stay alive or all pairing requests get rejected.
-mkfifo /tmp/btctl_fifo
-(
-    sleep 1; echo "power on"
-    sleep 1; echo "discoverable on"
-    sleep 1; echo "pairable on"
-    # Keep FIFO open forever so bluetoothctl doesn't exit
-    while true; do sleep 3600; done
-) > /tmp/btctl_fifo &
-BTCTL_FEEDER_PID=$!
+# Configure adapter with one-shot bluetoothctl commands
+bluetoothctl power on
+sleep 1
+bluetoothctl discoverable on
+sleep 1
+bluetoothctl pairable on
+sleep 1
 
-# --agent NoInputNoOutput: auto-accept all pairing (JustWorks, no confirmation prompt)
-bluetoothctl --agent NoInputNoOutput < /tmp/btctl_fifo &
+# bt-agent: headless Bluetooth agent daemon from bluez-tools.
+# Auto-accepts ALL pairing AND service authorization requests (NoInputNoOutput).
+# Unlike bluetoothctl's agent, this doesn't hang on "Authorize service" prompts.
+bt-agent --capability=NoInputNoOutput &
 AGENT_PID=$!
-sleep 7
+sleep 2
 echo "Bluetooth adapter + agent ready (PID: $AGENT_PID)"
 
 # ─── 6. START BLUEZ-ALSA ─────────────────────────────────────────────
