@@ -109,6 +109,29 @@ BLUEALSA_PID=$!
 sleep 2
 kill -0 $BLUEALSA_PID 2>/dev/null || { echo "ERROR: bluealsad failed"; exit 1; }
 
+# Single-device enforcer: when a new device connects, disconnect the old one
+(
+    LAST_MAC=""
+    dbus-monitor --system "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path_namespace=/org/bluez" 2>/dev/null | \
+    while read -r line; do
+        if echo "$line" | grep -q 'string "Connected"'; then
+            read -r _; read -r val
+            if echo "$val" | grep -q "boolean true"; then
+                # Find all connected devices
+                NEW_MAC=""
+                for mac in $(bluetoothctl devices Connected 2>/dev/null | awk '{print $2}'); do
+                    if [ "$mac" != "$LAST_MAC" ] && [ -n "$LAST_MAC" ]; then
+                        echo "[SingleDevice] Disconnecting old device: $LAST_MAC"
+                        bluetoothctl disconnect "$LAST_MAC" 2>/dev/null || true
+                    fi
+                    NEW_MAC="$mac"
+                done
+                [ -n "$NEW_MAC" ] && LAST_MAC="$NEW_MAC"
+            fi
+        fi
+    done
+) &
+
 # ─── 6. Audio routing + TCP ─────────────────────────────────────────
 echo "[6/7] Starting audio routing..."
 
