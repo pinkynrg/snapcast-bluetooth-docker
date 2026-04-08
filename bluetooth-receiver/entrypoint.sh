@@ -77,14 +77,13 @@ mkfifo /tmp/btctl_fifo
     sleep 1; echo "power on"
     sleep 1; echo "discoverable on"
     sleep 1; echo "pairable on"
-    sleep 1; echo "agent NoInputNoOutput"
-    sleep 1; echo "default-agent"
     # Keep FIFO open forever so bluetoothctl doesn't exit
     while true; do sleep 3600; done
 ) > /tmp/btctl_fifo &
 BTCTL_FEEDER_PID=$!
 
-bluetoothctl < /tmp/btctl_fifo &
+# --agent NoInputNoOutput: auto-accept all pairing (JustWorks, no confirmation prompt)
+bluetoothctl --agent NoInputNoOutput < /tmp/btctl_fifo &
 AGENT_PID=$!
 sleep 7
 echo "Bluetooth adapter + agent ready (PID: $AGENT_PID)"
