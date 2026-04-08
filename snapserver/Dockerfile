@@ -60,6 +60,9 @@ RUN arch=$(dpkg --print-architecture) && \
 # Configure snapserver with librespot source
 RUN sed -i 's,^source = .*,source = librespot:///librespot?name=Spotify\&devicename=Snapcast\&bitrate=320\&volume=75\&cache=/data,' /etc/snapserver.conf
 
+# Install ffmpeg for internet radio stream decoding
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+
 # Expose snapserver ports
 EXPOSE 1704/tcp 1705/tcp
 
