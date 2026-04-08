@@ -218,16 +218,17 @@ get_dev_name() { bluetoothctl info "$1" 2>/dev/null | grep "Name:" | sed 's/.*Na
     done
 ) &
 
-# ── Now-playing + volume monitor ──
-# Polls mixer for volume changes, and AVRCP MediaPlayer1 for track info.
-# Logs: device name, volume %, artist — title (or "unknown").
-get_now_playing() {
+# ── Now-playing + volume + playback status monitor ──
+# Polls mixer for volume changes, and AVRCP MediaPlayer1 for track + status.
+get_player_props() {
     local mac="$1"
     local dev_path="/org/bluez/hci0/dev_${mac//:/_}"
     local player_path="${dev_path}/player0"
-    local props
-    props=$(dbus-send --system --dest=org.bluez --print-reply "$player_path" \
-        org.freedesktop.DBus.Properties.GetAll string:org.bluez.MediaPlayer1 2>/dev/null) || return 1
+    dbus-send --system --dest=org.bluez --print-reply "$player_path" \
+        org.freedesktop.DBus.Properties.GetAll string:org.bluez.MediaPlayer1 2>/dev/null
+}
+get_now_playing() {
+    local props="$1"
     local artist title
     artist=$(echo "$props" | grep -A2 '"Artist"' | grep 'variant' | sed 's/.*string "//;s/"$//')
     title=$(echo "$props" | grep -A2 '"Title"' | grep 'variant' | sed 's/.*string "//;s/"$//')
@@ -235,9 +236,14 @@ get_now_playing() {
         [ -n "$artist" ] && echo "$artist — $title" || echo "$title"
     fi
 }
+get_player_status() {
+    local props="$1"
+    echo "$props" | grep -A1 '"Status"' | grep 'variant' | sed 's/.*string "//;s/"$//'
+}
 (
     PREV_VOL=""
     PREV_TRACK=""
+    PREV_STATUS=""
     while true; do
         # Get connected device for context
         CON_MAC=$(bluetoothctl devices Connected 2>/dev/null | awk '{print $2}' | grep -E '^([0-9A-F]{2}:){5}[0-9A-F]{2}$' | head -1)
@@ -254,15 +260,33 @@ get_now_playing() {
             PREV_VOL="$CURR_VOL"
         fi
 
-        # Now playing
+        # Track + status from AVRCP
         if [ -n "$CON_MAC" ]; then
-            CURR_TRACK=$(get_now_playing "$CON_MAC" 2>/dev/null)
-            if [ -n "$CURR_TRACK" ] && [ "$CURR_TRACK" != "$PREV_TRACK" ]; then
-                log "Now playing: $CURR_TRACK ($DEV_LABEL)"
-                PREV_TRACK="$CURR_TRACK"
+            PROPS=$(get_player_props "$CON_MAC" 2>/dev/null)
+            if [ -n "$PROPS" ]; then
+                CURR_TRACK=$(get_now_playing "$PROPS")
+                CURR_STATUS=$(get_player_status "$PROPS")
+
+                if [ -n "$CURR_TRACK" ] && [ "$CURR_TRACK" != "$PREV_TRACK" ]; then
+                    log "Now playing: $CURR_TRACK ($DEV_LABEL)"
+                    PREV_TRACK="$CURR_TRACK"
+                fi
+
+                if [ -n "$CURR_STATUS" ] && [ "$CURR_STATUS" != "$PREV_STATUS" ]; then
+                    case "$CURR_STATUS" in
+                        playing)       log "Playback resumed ($DEV_LABEL)" ;;
+                        paused)        log "Playback paused ($DEV_LABEL)" ;;
+                        stopped)       log "Playback stopped ($DEV_LABEL)" ;;
+                        forward-seek)  log "Seeking forward ($DEV_LABEL)" ;;
+                        reverse-seek)  log "Seeking backward ($DEV_LABEL)" ;;
+                        *)             log "Playback status: $CURR_STATUS ($DEV_LABEL)" ;;
+                    esac
+                    PREV_STATUS="$CURR_STATUS"
+                fi
             fi
         else
             PREV_TRACK=""
+            PREV_STATUS=""
         fi
         sleep 2
     done
