@@ -91,8 +91,8 @@ echo "Bluetooth adapter ready"
 echo "[6/8] Starting bluez-alsa..."
 
 # bluealsad daemon: handles Bluetooth audio
-# --profile=a2dp-snk: We act as A2DP sink (receiving audio FROM phones)
-bluealsad --profile=a2dp-snk &
+# --profile=a2dp-sink: We act as A2DP sink (receiving audio FROM phones)
+bluealsad --profile=a2dp-sink &
 BLUEALSA_PID=$!
 sleep 2
 
@@ -110,42 +110,31 @@ echo "[7/8] Setting up automatic audio routing..."
 cat > /usr/local/bin/bluealsa-autoroute.sh << 'ROUTEREOF'
 #!/bin/bash
 # Automatically route new Bluetooth A2DP connections to ALSA loopback
-# This script monitors D-Bus for new connections and starts bluealsa-aplay
+# Uses bluealsactl monitor to detect new PCMs (more reliable than bluetoothctl)
 
-echo "[AutoRouter] Started, monitoring for Bluetooth connections..."
+echo "[AutoRouter] Started, monitoring for Bluetooth PCMs..."
 
-# Monitor bluetoothctl for device connections
-bluetoothctl | while read -r line; do
-    # Look for device connection events
-    if echo "$line" | grep -iq "Device.*Connected: yes"; then
-        MAC=$(echo "$line" | grep -oE '([0-9A-F]{2}:){5}[0-9A-F]{2}' | head -1)
-        if [ -n "$MAC" ]; then
-            echo "[AutoRouter] Device connected: $MAC"
-            sleep 2  # Wait for A2DP profile to negotiate
-            
-            # Check if this device supports A2DP source profile
-            if bluealsactl list-pcms | grep -q "$MAC"; then
-                echo "[AutoRouter] A2DP source detected, starting playback..."
-                
-                # Kill any existing bluealsa-aplay for this device
-                pkill -f "bluealsa-aplay.*$MAC" 2>/dev/null || true
-                sleep 1
-                
-                # Start bluealsa-aplay to route audio from Bluetooth to ALSA loopback (hw:Loopback,1,0)
-                # hw:Loopback,1,0 = Loopback card, device 1, subdevice 0 (playback side)
-                bluealsa-aplay -v --pcm-buffer-time=500000 --pcm-period-time=100000 --single-audio "$MAC" | while read -r aplay_line; do
-                    echo "[bluealsa-aplay] $aplay_line"
-                done &
-                
-                echo "[AutoRouter] Audio routing active for $MAC"
+# Use bluealsactl monitor to watch for new PCM events
+bluealsactl monitor 2>/dev/null | while read -r line; do
+    if echo "$line" | grep -q "PCMAdded"; then
+        echo "[AutoRouter] New PCM detected: $line"
+        sleep 2  # Wait for transport to fully initialize
+        
+        # List all available PCMs and start playback for A2DP sink PCMs
+        bluealsactl list-pcms 2>/dev/null | while read -r pcm; do
+            if echo "$pcm" | grep -q "a2dp-sink"; then
+                MAC=$(echo "$pcm" | grep -oE '([0-9A-F]{2}_){5}[0-9A-F]{2}' | tr '_' ':' | head -1)
+                if [ -n "$MAC" ] && ! pgrep -f "bluealsa-aplay.*$MAC" >/dev/null 2>&1; then
+                    echo "[AutoRouter] Starting playback for $MAC -> hw:Loopback,0,0"
+                    bluealsa-aplay -D hw:Loopback,0,0 --single-audio "$MAC" 2>&1 | while read -r aplay_line; do
+                        echo "[bluealsa-aplay] $aplay_line"
+                    done &
+                    echo "[AutoRouter] Audio routing active for $MAC"
+                fi
             fi
-        fi
-    elif echo "$line" | grep -iq "Device.*Connected: no"; then
-        MAC=$(echo "$line" | grep -oE '([0-9A-F]{2}:){5}[0-9A-F]{2}' | head -1)
-        if [ -n "$MAC" ]; then
-            echo "[AutoRouter] Device disconnected: $MAC, stopping playback..."
-            pkill -f "bluealsa-aplay.*$MAC" 2>/dev/null || true
-        fi
+        done
+    elif echo "$line" | grep -q "PCMRemoved"; then
+        echo "[AutoRouter] PCM removed: $line"
     fi
 done
 ROUTEREOF
@@ -161,13 +150,13 @@ echo "[8/8] Configuring ALSA loopback..."
 # Create asound.conf to define a PCM device for Snapcast to capture from
 cat > /etc/asound.conf << 'EOF'
 # Loopback device configuration
-# bluealsa-aplay writes to hw:Loopback,1,0 (playback)
-# Snapcast reads from hw:Loopback,0,0 (capture)
+# bluealsa-aplay writes to hw:Loopback,0,0 (playback side)
+# Snapcast reads from hw:Loopback,1,0 (capture side)
 
 pcm.snapcast {
     type hw
     card Loopback
-    device 0
+    device 1
     subdevice 0
 }
 
@@ -187,7 +176,7 @@ echo "ALSA loopback configured for Snapcast"
 echo "========================================="
 echo "Bluetooth receiver ready!"
 echo "Device name: ${DEVICE_NAME}"
-echo "ALSA device: hw:Loopback,0,0"
+echo "ALSA device: hw:Loopback,1,0 (capture for Snapcast)"
 echo ""
 echo "Pair your phone and play audio"
 echo "========================================="
@@ -202,7 +191,7 @@ while true; do
     
     if ! kill -0 $BLUEALSA_PID 2>/dev/null; then
         echo "WATCHDOG: bluealsad died, restarting..."
-        bluealsad --profile=a2dp-snk &
+        bluealsad --profile=a2dp-sink &
         BLUEALSA_PID=$!
     fi
     
