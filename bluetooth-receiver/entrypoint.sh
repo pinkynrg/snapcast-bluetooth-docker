@@ -75,6 +75,12 @@ sleep 1
 hciconfig hci0 lm accept
 hciconfig hci0 lp hold,sniff,park
 
+# Trust all previously paired devices so they auto-connect without re-auth
+for dev in $(bluetoothctl devices Paired 2>/dev/null | awk '{print $2}'); do
+    bluetoothctl trust "$dev" 2>/dev/null || true
+    echo "Trusted: $dev"
+done
+
 # Create an expect script that runs bluetoothctl as our Bluetooth agent.
 # It pattern-matches all interactive prompts and auto-responds "yes".
 # (No FIFO, no interact, no TTY needed — just expect's core match loop.)
@@ -90,13 +96,8 @@ expect "succeeded"
 send "pairable on\r"
 expect "succeeded"
 # Sit forever, auto-accepting any prompt BlueZ throws at us
-# Also auto-trust newly connected devices so they don't need re-auth
 while {1} {
     expect {
-        -re "\\[CHG\\] Device (\[0-9A-F:\]+) Connected: yes" {
-            set mac $expect_out(1,string)
-            send "trust $mac\r"
-        }
         "Authorize service*"       { send "yes\r" }
         "Request confirmation*"    { send "yes\r" }
         "Confirm passkey*"         { send "yes\r" }
