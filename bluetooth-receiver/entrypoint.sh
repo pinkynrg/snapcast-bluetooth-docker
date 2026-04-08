@@ -171,7 +171,7 @@ echo "bluealsa-aplay started (PID: $APLAY_PID)"
 (
     while true; do
         echo "[TCP] Waiting for Snapserver on port 4953..."
-        socat TCP-LISTEN:4953,reuseaddr EXEC:"arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw 2>/dev/null"
+        socat TCP-LISTEN:4953,reuseaddr SYSTEM:"arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw 2>/dev/null"
         echo "[TCP] Connection closed, restarting..."
         sleep 1
     done
@@ -221,7 +221,7 @@ while true; do
         (
             while true; do
                 echo "[TCP] Waiting for Snapserver on port 4953..."
-                socat TCP-LISTEN:4953,reuseaddr EXEC:"arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw 2>/dev/null"
+                socat TCP-LISTEN:4953,reuseaddr SYSTEM:"arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw 2>/dev/null"
                 echo "[TCP] Connection closed, restarting..."
                 sleep 1
             done
