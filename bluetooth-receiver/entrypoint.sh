@@ -70,20 +70,38 @@ echo "[5/8] Initializing Bluetooth adapter..."
 hciconfig hci0 up
 sleep 1
 
-# Configure adapter with one-shot bluetoothctl commands
-bluetoothctl power on
-sleep 1
-bluetoothctl discoverable on
-sleep 1
-bluetoothctl pairable on
-sleep 1
+# Create an expect script that runs bluetoothctl as our Bluetooth agent.
+# It pattern-matches all interactive prompts and auto-responds "yes".
+# (No FIFO, no interact, no TTY needed — just expect's core match loop.)
+cat > /tmp/bt-agent.expect << 'EXPECTEOF'
+#!/usr/bin/expect -f
+set timeout -1
+spawn bluetoothctl --agent NoInputNoOutput
+expect "Agent registered"
+send "power on\r"
+expect "succeeded"
+send "discoverable on\r"
+expect "succeeded"
+send "pairable on\r"
+expect "succeeded"
+# Sit forever, auto-accepting any prompt BlueZ throws at us
+while {1} {
+    expect {
+        "Authorize service*"       { send "yes\r" }
+        "Request confirmation*"    { send "yes\r" }
+        "Confirm passkey*"         { send "yes\r" }
+        "Enter passkey*"           { send "0000\r" }
+        "Request PIN*"             { send "0000\r" }
+        "Accept*"                  { send "yes\r" }
+        eof                        { break }
+    }
+}
+EXPECTEOF
+chmod +x /tmp/bt-agent.expect
 
-# bt-agent: headless Bluetooth agent daemon from bluez-tools.
-# Auto-accepts ALL pairing AND service authorization requests (NoInputNoOutput).
-# Unlike bluetoothctl's agent, this doesn't hang on "Authorize service" prompts.
-bt-agent --capability=NoInputNoOutput &
+/tmp/bt-agent.expect &
 AGENT_PID=$!
-sleep 2
+sleep 5
 echo "Bluetooth adapter + agent ready (PID: $AGENT_PID)"
 
 # ─── 6. START BLUEZ-ALSA ─────────────────────────────────────────────
