@@ -70,10 +70,6 @@ echo "[4/7] Initializing adapter..."
 hciconfig hci0 up
 sleep 1
 
-for dev in $(bluetoothctl devices Paired 2>/dev/null | awk '{print $2}'); do
-    bluetoothctl trust "$dev" 2>/dev/null || true
-done
-
 cat > /tmp/bt-agent.expect << 'EXPECTEOF'
 #!/usr/bin/expect -f
 set timeout -1
@@ -174,5 +170,12 @@ while true; do
     kill -0 $TCP_PID       2>/dev/null || { restart tcp; ( while true; do socat TCP-LISTEN:4953,reuseaddr SYSTEM:"arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw 2>/dev/null"; sleep 1; done ) & TCP_PID=$!; }
 
     bluetoothctl show 2>/dev/null | grep -q "Discoverable: yes" || bluetoothctl discoverable on 2>/dev/null || true
+
+    # Remove paired-but-disconnected devices so stale keys don't block re-pairing
+    CONNECTED=$(bluetoothctl devices Connected 2>/dev/null | awk '{print $2}')
+    for dev in $(bluetoothctl devices Paired 2>/dev/null | awk '{print $2}'); do
+        echo "$CONNECTED" | grep -q "$dev" || bluetoothctl remove "$dev" 2>/dev/null || true
+    done
+
     sleep 10
 done
