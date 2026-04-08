@@ -45,8 +45,7 @@ echo "D-Bus started"
 sleep 1
 
 # ─── 4. START BLUETOOTHD ─────────────────────────────────────────────
-# Disable HFP plugins: this is a music receiver, not a phone call handler.
-/usr/libexec/bluetooth/bluetoothd --noplugin=hfp_hf,hfp_ag &
+/usr/libexec/bluetooth/bluetoothd &
 BLUETOOTHD_PID=$!
 echo "bluetoothd started (PID: $BLUETOOTHD_PID)"
 sleep 3
@@ -250,7 +249,7 @@ DMESG_START=$(dmesg | wc -l)
 while true; do
     if ! kill -0 $BLUETOOTHD_PID 2>/dev/null; then
         echo "WATCHDOG: bluetoothd died, restarting..."
-        /usr/libexec/bluetooth/bluetoothd --noplugin=hfp_hf,hfp_ag &
+        /usr/libexec/bluetooth/bluetoothd &
         BLUETOOTHD_PID=$!
     fi
 
@@ -299,7 +298,7 @@ while true; do
         sleep 2
         
         echo "WATCHDOG: Hardware reset done, restarting services..."
-        /usr/libexec/bluetooth/bluetoothd --noplugin=hfp_hf,hfp_ag &
+        /usr/libexec/bluetooth/bluetoothd &
         BLUETOOTHD_PID=$!
         sleep 3
         
