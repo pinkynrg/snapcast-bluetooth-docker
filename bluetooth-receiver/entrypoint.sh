@@ -120,7 +120,7 @@ amixer -c Loopback -q set 'Bluetooth' 100% 2>/dev/null || true
 arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw /dev/null 2>/dev/null &
 DRAIN_PID=$!
 
-bluealsa-aplay -D loopout --single-audio 2>&1 | sed 's/^/[bluealsa-aplay] /' &
+bluealsa-aplay -D loopout --mixer-device=hw:Loopback --mixer-control=Bluetooth --single-audio 2>&1 | sed 's/^/[bluealsa-aplay] /' &
 APLAY_PID=$!
 
 ( while true; do
@@ -140,7 +140,7 @@ restart() { echo "WATCHDOG: $1 died, restarting..."; }
 while true; do
     kill -0 $BLUETOOTHD_PID 2>/dev/null || { restart bluetoothd; /usr/libexec/bluetooth/bluetoothd -d & BLUETOOTHD_PID=$!; }
     kill -0 $BLUEALSA_PID  2>/dev/null || { restart bluealsad; bluealsad --profile=a2dp-sink & BLUEALSA_PID=$!; }
-    kill -0 $APLAY_PID     2>/dev/null || { restart bluealsa-aplay; bluealsa-aplay -D loopout --single-audio 2>&1 | sed 's/^/[bluealsa-aplay] /' & APLAY_PID=$!; }
+    kill -0 $APLAY_PID     2>/dev/null || { restart bluealsa-aplay; bluealsa-aplay -D loopout --mixer-device=hw:Loopback --mixer-control=Bluetooth --single-audio 2>&1 | sed 's/^/[bluealsa-aplay] /' & APLAY_PID=$!; }
     kill -0 $DRAIN_PID     2>/dev/null || { restart drain; arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw /dev/null 2>/dev/null & DRAIN_PID=$!; }
     kill -0 $TCP_PID       2>/dev/null || { restart tcp; ( while true; do socat TCP-LISTEN:4953,reuseaddr SYSTEM:"arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw 2>/dev/null"; sleep 1; done ) & TCP_PID=$!; }
 
