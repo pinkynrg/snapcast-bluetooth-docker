@@ -3,6 +3,9 @@
 # See DECISIONS.md for why things are done this way.
 # Do NOT use set -e: bluetoothctl commands fail transiently and that's OK.
 
+# Timestamp all output
+exec > >(while IFS= read -r line; do echo "[$(date "+%H:%M:%S")] $line"; done) 2>&1
+
 echo "Starting Bluetooth receiver..."
 
 # ─── 1. CHECK HARDWARE ────────────────────────────────────────────────
@@ -140,25 +143,52 @@ echo "Auto-pair agent started"
 
 # ─── 8. CONNECTION MONITOR (dbus-monitor) ────────────────────────────
 # dbus-monitor doesn't need a TTY, runs forever, and reliably catches events.
-# On connect: create a loopback from the BT source to tcp_out so PulseAudio
-# keeps the A2DP transport acquired. Without an active consumer, BlueZ
-# disconnects after its 10-second idle timeout.
+# Logs ALL D-Bus property changes on /org/bluez with timestamps for diagnostics.
 cat > /usr/local/bin/bt-monitor.sh << 'MONEOF'
 #!/bin/bash
+ts() { date "+%H:%M:%S.%3N"; }
 
-while IFS= read -r line; do
+dbus-monitor --system "interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path_namespace=/org/bluez" 2>&1 | while IFS= read -r line; do
+    # Capture the device path
     if echo "$line" | grep -q "path=/org/bluez/hci0/dev_"; then
+        current_path=$(echo "$line" | grep -oP "path=\K/org/bluez/hci0/dev_[A-F0-9_]+")
         current_mac=$(echo "$line" | grep -oP "dev_\K[A-F0-9_]+" | tr '_' ':')
     fi
+
+    # Log Connected changes
     if echo "$line" | grep -q '"Connected"'; then
         read -r val
         if echo "$val" | grep -q "true"; then
-            echo "Bluetooth: Connected - ${current_mac:-unknown}"
+            echo "[$(ts)] BT Connected: ${current_mac:-unknown}"
+            # Dump PA sinks/sources 2s later for diagnostics
+            ( sleep 2
+              echo "[$(date "+%H:%M:%S.%3N")] PA sources: $(pactl list sources short 2>/dev/null | grep -v monitor || echo 'none')"
+              echo "[$(date "+%H:%M:%S.%3N")] PA sink-inputs: $(pactl list sink-inputs short 2>/dev/null || echo 'none')"
+            ) &
         elif echo "$val" | grep -q "false"; then
-            echo "Bluetooth: Disconnected - ${current_mac:-unknown}"
+            echo "[$(ts)] BT Disconnected: ${current_mac:-unknown}"
         fi
     fi
-done < <(dbus-monitor --system "interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path_namespace=/org/bluez" 2>&1)
+
+    # Log ServicesResolved (indicates profile setup complete)
+    if echo "$line" | grep -q '"ServicesResolved"'; then
+        read -r val
+        if echo "$val" | grep -q "true"; then
+            echo "[$(ts)] BT ServicesResolved: ${current_mac:-unknown}"
+        elif echo "$val" | grep -q "false"; then
+            echo "[$(ts)] BT ServicesUnresolved: ${current_mac:-unknown}"
+        fi
+    fi
+
+    # Log any codec/transport changes (MediaTransport properties)
+    if echo "$line" | grep -q '"State"'; then
+        read -r val
+        state=$(echo "$val" | grep -oP 'string "\K[^"]+')
+        if [ -n "$state" ]; then
+            echo "[$(ts)] BT Transport state: $state (${current_mac:-unknown})"
+        fi
+    fi
+done
 MONEOF
 chmod +x /usr/local/bin/bt-monitor.sh
 /usr/local/bin/bt-monitor.sh &
