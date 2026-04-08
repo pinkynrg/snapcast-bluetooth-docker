@@ -147,8 +147,9 @@ echo "Auto-pair agent started"
 cat > /usr/local/bin/bt-monitor.sh << 'MONEOF'
 #!/bin/bash
 ts() { date "+%H:%M:%S.%3N"; }
+LOOPBACK_MODULE=""
 
-dbus-monitor --system "interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path_namespace=/org/bluez" 2>&1 | while IFS= read -r line; do
+while IFS= read -r line; do
     # Capture the device path
     if echo "$line" | grep -q "path=/org/bluez/hci0/dev_"; then
         current_path=$(echo "$line" | grep -oP "path=\K/org/bluez/hci0/dev_[A-F0-9_]+")
@@ -160,17 +161,54 @@ dbus-monitor --system "interface='org.freedesktop.DBus.Properties',member='Prope
         read -r val
         if echo "$val" | grep -q "true"; then
             echo "[$(ts)] BT Connected: ${current_mac:-unknown}"
-            # Dump PA sinks/sources 2s later for diagnostics
-            ( sleep 2
-              echo "[$(date "+%H:%M:%S.%3N")] PA sources: $(pactl list sources short 2>/dev/null | grep -v monitor || echo 'none')"
-              echo "[$(date "+%H:%M:%S.%3N")] PA sink-inputs: $(pactl list sink-inputs short 2>/dev/null || echo 'none')"
-            ) &
+            # Skip if loopback already active (BlueZ fires Connected twice per connection)
+            if [ -n "$LOOPBACK_MODULE" ] && pactl list modules short 2>/dev/null | awk '{print $1}' | grep -qx "$LOOPBACK_MODULE"; then
+                echo "[$(ts)] Loopback already active (module $LOOPBACK_MODULE), skipping"
+            else
+                # Wait for PA to register the BT source, then create locked loopback
+                (
+                    BT_SOURCE=""
+                    for i in $(seq 1 20); do
+                        sleep 0.5
+                        BT_SOURCE=$(pactl list sources short 2>/dev/null | grep -i "bluez_source" | awk '{print $2}' | head -1)
+                        [ -n "$BT_SOURCE" ] && break
+                    done
+                    if [ -n "$BT_SOURCE" ]; then
+                        MID=$(pactl load-module module-loopback source="$BT_SOURCE" sink=tcp_out adjust_time=0 source_dont_move=true sink_dont_move=true latency_msec=100 2>/dev/null)
+                        echo "[$(date "+%H:%M:%S.%3N")] PA loopback created: $BT_SOURCE -> tcp_out (module=$MID)"
+                        echo "$MID" > /tmp/bt_loopback_id
+                    else
+                        echo "[$(date "+%H:%M:%S.%3N")] PA WARNING: no bluez_source found after 10s"
+                    fi
+                    # Dump PA state for diagnostics
+                    sleep 1
+                    echo "[$(date "+%H:%M:%S.%3N")] PA sources: $(pactl list sources short 2>/dev/null | grep -v monitor || echo 'none')"
+                    echo "[$(date "+%H:%M:%S.%3N")] PA source-outputs: $(pactl list source-outputs short 2>/dev/null || echo 'none')"
+                    echo "[$(date "+%H:%M:%S.%3N")] PA sink-inputs: $(pactl list sink-inputs short 2>/dev/null || echo 'none')"
+                    # Monitor source-outputs every 2s for 30s
+                    for i in $(seq 1 15); do
+                        sleep 2
+                        SO=$(pactl list source-outputs short 2>/dev/null | grep -c bluez || echo 0)
+                        SI=$(pactl list sink-inputs short 2>/dev/null | grep -c loopback || echo 0)
+                        SRC_STATE=$(pactl list sources 2>/dev/null | grep -A3 "bluez_source" | grep "State:" | awk '{print $2}')
+                        echo "[$(date "+%H:%M:%S.%3N")] PA check: bluez_source_outputs=$SO loopback_sink_inputs=$SI source_state=${SRC_STATE:-gone}"
+                    done
+                ) &
+            fi
         elif echo "$val" | grep -q "false"; then
             echo "[$(ts)] BT Disconnected: ${current_mac:-unknown}"
+            # Clean up loopback
+            if [ -f /tmp/bt_loopback_id ]; then
+                MID=$(cat /tmp/bt_loopback_id)
+                pactl unload-module "$MID" 2>/dev/null
+                rm -f /tmp/bt_loopback_id
+                LOOPBACK_MODULE=""
+                echo "[$(ts)] PA loopback removed (module=$MID)"
+            fi
         fi
     fi
 
-    # Log ServicesResolved (indicates profile setup complete)
+    # Log ServicesResolved
     if echo "$line" | grep -q '"ServicesResolved"'; then
         read -r val
         if echo "$val" | grep -q "true"; then
@@ -180,7 +218,7 @@ dbus-monitor --system "interface='org.freedesktop.DBus.Properties',member='Prope
         fi
     fi
 
-    # Log any codec/transport changes (MediaTransport properties)
+    # Log transport state changes
     if echo "$line" | grep -q '"State"'; then
         read -r val
         state=$(echo "$val" | grep -oP 'string "\K[^"]+')
@@ -188,7 +226,7 @@ dbus-monitor --system "interface='org.freedesktop.DBus.Properties',member='Prope
             echo "[$(ts)] BT Transport state: $state (${current_mac:-unknown})"
         fi
     fi
-done
+done < <(dbus-monitor --system "interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path_namespace=/org/bluez" 2>&1)
 MONEOF
 chmod +x /usr/local/bin/bt-monitor.sh
 /usr/local/bin/bt-monitor.sh &
@@ -212,9 +250,8 @@ cat > /etc/pulse/custom.pa << 'EOF'
 load-module module-native-protocol-unix auth-anonymous=1
 load-module module-null-sink sink_name=tcp_out rate=44100 channels=2
 load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source=tcp_out.monitor port=4953 listen=0.0.0.0 record=true
-load-module module-bluetooth-policy
+load-module module-bluetooth-policy auto_switch=0
 load-module module-bluetooth-discover
-load-module module-switch-on-connect
 set-default-sink tcp_out
 EOF
 
