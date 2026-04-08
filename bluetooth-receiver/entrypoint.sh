@@ -124,6 +124,14 @@ echo "bluealsa daemon running (PID: $BLUEALSA_PID)"
 # ─── 7. START AUDIO PLAYBACK ──────────────────────────────────────────
 echo "[7/8] Starting audio routing..."
 
+# The ALSA loopback requires BOTH sides open: playback (write) AND capture (read).
+# Without a reader on hw:Loopback,1,0, the internal buffer fills up in ~30s,
+# bluealsa-aplay stalls, the BT transport stalls, and the phone disconnects.
+# Start a drain process until Snapclient takes over the capture side.
+arecord -D plughw:Loopback,1,0 -f S16_LE -r 44100 -c 2 -t raw /dev/null &
+DRAIN_PID=$!
+echo "Loopback drain started (PID: $DRAIN_PID)"
+
 # bluealsa-aplay without a MAC address automatically handles ALL connecting
 # devices. --single-audio plays one device at a time. No custom router needed.
 bluealsa-aplay -D hw:Loopback,0,0 --single-audio 2>&1 | while read -r line; do
