@@ -1,0 +1,100 @@
+{
+    "ConfigVersion": 2,
+    "Groups": [
+        {
+            "clients": [
+                {
+                    "config": {
+                        "instance": 1,
+                        "latency": 0,
+                        "name": "",
+                        "volume": {
+                            "muted": false,
+                            "percent": 14
+                        }
+                    },
+                    "connected": true,
+                    "host": {
+                        "arch": "aarch64",
+                        "ip": "::ffff:192.168.1.102",
+                        "mac": "8a:19:aa:15:8f:0f",
+                        "name": "partybag-bedroom-speaker",
+                        "os": "Debian GNU/Linux 12 (bookworm)"
+                    },
+                    "id": "partybag-bedroom-speaker",
+                    "lastSeen": {
+                        "sec": 1775691045,
+                        "usec": 986194
+                    },
+                    "snapclient": {
+                        "name": "Snapclient",
+                        "protocolVersion": 2,
+                        "version": "0.34.0"
+                    }
+                },
+                {
+                    "config": {
+                        "instance": 1,
+                        "latency": 0,
+                        "name": "",
+                        "volume": {
+                            "muted": false,
+                            "percent": 14
+                        }
+                    },
+                    "connected": true,
+                    "host": {
+                        "arch": "aarch64",
+                        "ip": "::ffff:192.168.1.103",
+                        "mac": "de:b4:5f:6c:d2:20",
+                        "name": "speaker-bathroom",
+                        "os": "Debian GNU/Linux 12 (bookworm)"
+                    },
+                    "id": "speaker-bathroom",
+                    "lastSeen": {
+                        "sec": 1775691045,
+                        "usec": 889911
+                    },
+                    "snapclient": {
+                        "name": "Snapclient",
+                        "protocolVersion": 2,
+                        "version": "0.34.0"
+                    }
+                },
+                {
+                    "config": {
+                        "instance": 1,
+                        "latency": 0,
+                        "name": "",
+                        "volume": {
+                            "muted": false,
+                            "percent": 14
+                        }
+                    },
+                    "connected": true,
+                    "host": {
+                        "arch": "aarch64",
+                        "ip": "::ffff:192.168.1.101",
+                        "mac": "9e:d0:a6:9d:85:4d",
+                        "name": "partybag-livingroom-speaker",
+                        "os": "Debian GNU/Linux 12 (bookworm)"
+                    },
+                    "id": "partybag-livingroom-speaker",
+                    "lastSeen": {
+                        "sec": 1775691046,
+                        "usec": 385879
+                    },
+                    "snapclient": {
+                        "name": "Snapclient",
+                        "protocolVersion": 2,
+                        "version": "0.34.0"
+                    }
+                }
+            ],
+            "id": "c8a2a548-3976-2db2-20fe-b1ee79fe5085",
+            "muted": false,
+            "name": "",
+            "stream_id": "Bluetooth"
+        }
+    ]
+}
