@@ -70,7 +70,7 @@ echo "[5/8] Initializing Bluetooth adapter..."
 hciconfig hci0 up
 sleep 1
 
-# Use bluetoothctl in non-blocking mode by piping commands
+# Configure adapter via bluetoothctl (non-blocking, just settings)
 (
 echo "power on"
 sleep 1
@@ -78,14 +78,31 @@ echo "discoverable on"
 sleep 1
 echo "pairable on"
 sleep 1
-echo "agent NoInputNoOutput"
-sleep 1
-echo "default-agent"
-sleep 1
 echo "quit"
 ) | bluetoothctl
 
-echo "Bluetooth adapter ready"
+echo "Bluetooth adapter configured"
+
+# Start a persistent agent that stays running to handle pairing requests
+# Without this, all pairing attempts are rejected
+cat > /usr/local/bin/bt-agent << 'AGENTEOF'
+#!/usr/bin/expect -f
+set timeout -1
+spawn bluetoothctl
+expect "#"
+send "agent NoInputNoOutput\r"
+expect "#"
+send "default-agent\r"
+expect "#"
+# Keep running forever to handle pairing requests
+interact
+AGENTEOF
+chmod +x /usr/local/bin/bt-agent
+
+/usr/local/bin/bt-agent &
+AGENT_PID=$!
+sleep 2
+echo "Bluetooth agent running (PID: $AGENT_PID)"
 
 # ─── 6. START BLUEZ-ALSA ─────────────────────────────────────────────
 echo "[6/8] Starting bluez-alsa..."
@@ -193,6 +210,12 @@ while true; do
         echo "WATCHDOG: bluealsad died, restarting..."
         bluealsad --profile=a2dp-sink &
         BLUEALSA_PID=$!
+    fi
+    
+    if ! kill -0 $AGENT_PID 2>/dev/null; then
+        echo "WATCHDOG: BT agent died, restarting..."
+        /usr/local/bin/bt-agent &
+        AGENT_PID=$!
     fi
     
     if ! kill -0 $ROUTER_PID 2>/dev/null; then
