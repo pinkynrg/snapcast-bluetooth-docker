@@ -2,37 +2,43 @@
 # Exit on any error. Every background process uses || true where failure is acceptable.
 set -e
 
-# Bluetooth device name visible to phones/computers scanning for devices.
-# Can be overridden via DEVICE_NAME env var in docker-compose.yml.
+# ─── Config ──────────────────────────────────────────────────────────
 DEVICE_NAME="${DEVICE_NAME:-Snapcast Receiver}"
+VERBOSE="${VERBOSE:-false}"
 
-echo "========================================="
-echo "Bluetooth Receiver (bluez-alsa)"
-echo "Device: $DEVICE_NAME"
-echo "========================================="
+# ─── Logging ─────────────────────────────────────────────────────────
+# Consistent format: [bt-receiver] message
+# In non-verbose mode, noisy subprocesses are silenced and we log key events ourselves.
+log()  { echo "[bt-receiver] $*"; }
+logv() { [ "$VERBOSE" = "true" ] && echo "[bt-receiver] $*" || true; }
+
+# Redirect target: verbose → stdout, normal → /dev/null
+if [ "$VERBOSE" = "true" ]; then
+    VOUT="/dev/stdout"
+else
+    VOUT="/dev/null"
+fi
+
+log "========================================="
+log "Bluetooth Receiver (bluez-alsa)"
+log "Device: $DEVICE_NAME | Verbose: $VERBOSE"
+log "========================================="
 
 # ─── 1. D-Bus ────────────────────────────────────────────────────────
-# BlueZ (bluetoothd) and bluez-alsa (bluealsad) communicate over D-Bus.
-# Without a running system bus, neither can start.
-echo "[1/7] Starting D-Bus..."
-mkdir -p /var/run/dbus          # Socket directory (may not exist in minimal container)
-rm -f /var/run/dbus/pid         # Stale PID file from a previous run would prevent startup
-dbus-daemon --system --nofork --nopidfile &
-sleep 2                         # Wait for the bus socket to be ready
+# BlueZ and bluez-alsa communicate over D-Bus. Without it, nothing starts.
+log "Starting D-Bus..."
+mkdir -p /var/run/dbus
+rm -f /var/run/dbus/pid
+dbus-daemon --system --nofork --nopidfile &> "$VOUT" &
+sleep 2
 
 # ─── 2. ALSA loopback + config ──────────────────────────────────────
-# The ALSA loopback kernel module (snd-aloop) creates a virtual sound card with two
-# sides: what you write to side 0 appears as audio on side 1, and vice versa.
-# This is how we bridge bluealsa-aplay (writes BT audio) to arecord (reads it for TCP).
-#   pcm_substreams=1 — we only need one substream pair, not the default 8.
-echo "[2/7] Loading ALSA loopback..."
+# snd-aloop creates a virtual sound card bridging bluealsa-aplay → arecord (TCP).
+log "Loading ALSA loopback..."
 lsmod | grep -q snd_aloop || modprobe snd-aloop pcm_substreams=1
-# Wait up to 10 seconds for the Loopback card to appear in ALSA's device list.
 for i in $(seq 1 10); do aplay -l 2>/dev/null | grep -q Loopback && break; sleep 1; done
 
-# Docker snapshots /dev at container start. If modprobe loaded snd-aloop AFTER start,
-# the Loopback device nodes (pcmC2D0p, pcmC2D0c, etc.) won't exist in /dev/snd/.
-# Fix: read /sys/class/sound/ (always up-to-date) and create any missing char devices.
+# Docker snapshots /dev at start, before modprobe. Create any missing device nodes.
 for dev in /sys/class/sound/*; do
     name=$(basename "$dev")
     if [ -f "$dev/dev" ] && [ ! -e "/dev/snd/$name" ]; then
@@ -41,23 +47,16 @@ for dev in /sys/class/sound/*; do
     fi
 done
 
-# ALSA configuration — defines two virtual PCM devices used throughout the script:
-#
-# "loopout" (softvol plugin):
-#   Wraps hw:Loopback,0,0 (playback side 0) with a software volume control named
-#   "Bluetooth" on the Loopback card. This is what bluealsa-aplay writes to.
-#   When the phone changes volume, bluealsa-aplay adjusts this mixer, and the
-#   actual PCM amplitude changes before it hits the loopback.
-#   Range: -51dB (silent) to 0dB (full volume).
-#
-# "loopin" (dsnoop plugin):
-#   Wraps hw:Loopback,1,0 (capture side 1 — receives whatever was written to side 0).
-#   dsnoop allows multiple processes to read from the same capture device simultaneously.
-#   We need this because TWO things read from the loopback capture:
-#     1. The drain process (arecord > /dev/null) — prevents buffer stall when no TCP client
-#     2. The TCP server (socat > arecord) — sends audio to Snapserver
-#   Without dsnoop, only one could open the device at a time.
-#   ipc_key 12345 — shared memory key so both readers coordinate.
+# Verify loopback is accessible
+if aplay -l 2>/dev/null | grep -q Loopback; then
+    log "ALSA loopback ready"
+else
+    log "ERROR: ALSA loopback not found"
+    exit 1
+fi
+
+# softvol "loopout": wraps hw:Loopback with a "Bluetooth" mixer for phone volume control
+# dsnoop "loopin": lets drain + TCP server share the capture side simultaneously
 cat > /etc/asound.conf << 'EOF'
 pcm.loopout {
     type softvol
@@ -83,17 +82,10 @@ pcm.loopin {
 EOF
 
 # ─── 3. Bluetooth daemon ────────────────────────────────────────────
-# bluetoothd is the BlueZ daemon — manages the HCI adapter, handles pairing,
-# service discovery, and profile connections. Everything BT goes through it.
-echo "[3/7] Starting Bluetooth..."
-mkdir -p /var/lib/bluetooth     # Persistent storage for pairing keys (mapped to Docker volume)
-# Write BlueZ main config:
-#   Name — what shows up when phones scan
-#   Class 0x200414 — "Audio" major class + "Loudspeaker" minor (so phones show a speaker icon)
-#   DiscoverableTimeout 0 — stay discoverable forever (never hide)
-#   JustWorksRepairing always — re-pair without user confirmation if keys are lost
-#   AutoEnable true — power on the adapter automatically at startup
-cat > /etc/bluetooth/main.conf << EOF
+# bluetoothd manages the HCI adapter, pairing, and profile connections.
+log "Starting Bluetooth daemon..."
+mkdir -p /var/lib/bluetooth
+cat > /etc/bluetooth/main.conf << BTEOF
 [General]
 Name = ${DEVICE_NAME}
 Class = 0x200414
@@ -103,45 +95,30 @@ AutoEnable = true
 
 [Policy]
 AutoEnable = true
-EOF
+BTEOF
 
-# Start bluetoothd in debug mode (-d) so errors show in container logs.
-# Runs in background; PID saved for watchdog monitoring.
-/usr/libexec/bluetooth/bluetoothd -d &
+# -d (debug) only in verbose mode; normal mode runs quietly
+if [ "$VERBOSE" = "true" ]; then
+    /usr/libexec/bluetooth/bluetoothd -d &
+else
+    /usr/libexec/bluetooth/bluetoothd &> /dev/null &
+fi
 BLUETOOTHD_PID=$!
-sleep 3                         # Wait for bluetoothd to register on D-Bus
+sleep 3
 
 # ─── 4. Adapter + agent ─────────────────────────────────────────────
-# The BT adapter (hci0) needs to be UP, and we need a "pairing agent" that
-# automatically responds to pairing/authorization prompts from bluetoothctl.
-echo "[4/7] Initializing adapter..."
-hciconfig hci0 up               # Bring up the HCI adapter (may already be up from AutoEnable)
+# expect script auto-responds to all pairing/authorization prompts.
+# --agent NoInputNoOutput → Just Works pairing (no PIN display needed).
+log "Initializing adapter + agent..."
+hciconfig hci0 up
 sleep 1
 
-# The expect script solves a critical problem: bluetoothctl is interactive and prompts
-# for confirmation on pairing ("Confirm passkey?"), service authorization ("Authorize
-# service?"), etc. Without an agent responding, connections hang and eventually fail.
-#
-# Why expect and not a FIFO or bt-agent?
-#   - FIFO: bluetoothctl reads stdin but "Authorize service" needs a "yes" response
-#     that can't be pre-piped (it arrives asynchronously).
-#   - bt-agent (bluez-tools): daemon mode is broken per upstream README.
-#   - expect: pattern-matches output lines and sends responses. Works perfectly.
-#
-# --agent NoInputNoOutput: tells BlueZ this device has no display/keyboard, so it
-# uses "Just Works" pairing (no PIN display). Without this, BlueZ might ask the
-# user to confirm a 6-digit passkey on a screen that doesn't exist.
-#
-# The while loop runs forever, matching any prompt bluetoothctl produces:
-#   "Authorize service" — a device wants to use A2DP sink. Must say yes or audio won't work.
-#   "Request confirmation" — pairing confirmation. Must say yes.
-#   "Confirm passkey" — SSP passkey confirmation. Must say yes.
-#   "Enter passkey" / "Request PIN" — legacy pairing. Send 0000.
-#   "Accept" — any other acceptance prompt. Say yes.
-#   eof — bluetoothctl died. Break out (watchdog will notice).
+# log_user 0 suppresses expect output in non-verbose mode.
+# In verbose mode, we sed it to log_user 1 so all bluetoothctl output is visible.
 cat > /tmp/bt-agent.expect << 'EXPECTEOF'
 #!/usr/bin/expect -f
 set timeout -1
+log_user 0
 spawn bluetoothctl --agent NoInputNoOutput
 expect "Agent registered"
 send "power on\r"
@@ -163,37 +140,27 @@ while {1} {
 }
 EXPECTEOF
 chmod +x /tmp/bt-agent.expect
-/tmp/bt-agent.expect &
+
+if [ "$VERBOSE" = "true" ]; then
+    sed -i 's/^log_user 0$/log_user 1/' /tmp/bt-agent.expect
+    /tmp/bt-agent.expect &
+else
+    /tmp/bt-agent.expect &> /dev/null &
+fi
 AGENT_PID=$!
-sleep 5                         # Wait for power/discoverable/pairable to complete
+sleep 5
+log "Adapter up — discoverable + pairable"
 
 # ─── 5. bluez-alsa ──────────────────────────────────────────────────
-# bluealsad is the bluez-alsa daemon. It bridges BlueZ (Bluetooth) and ALSA (audio).
-# When a phone streams A2DP audio, bluealsad decodes the SBC/AAC stream and makes
-# it available as a virtual ALSA PCM device that bluealsa-aplay can read from.
-#   --profile=a2dp-sink — we are an A2DP sink (receive audio), not a source.
-echo "[5/7] Starting bluez-alsa..."
-bluealsad --profile=a2dp-sink &
+# bluealsad bridges BlueZ ↔ ALSA. Decodes A2DP audio into a virtual PCM device.
+log "Starting bluez-alsa..."
+bluealsad --profile=a2dp-sink &> "$VOUT" &
 BLUEALSA_PID=$!
 sleep 2
-# Verify bluealsad is still running. If it crashed (missing libs, D-Bus errors),
-# there's no point continuing — nothing else will work without it.
-kill -0 $BLUEALSA_PID 2>/dev/null || { echo "ERROR: bluealsad failed"; exit 1; }
+kill -0 $BLUEALSA_PID 2>/dev/null || { log "ERROR: bluealsad failed to start"; exit 1; }
 
 # ── Single-device enforcer ──
-# Only allow one Bluetooth device connected at a time. When a second phone connects,
-# the older one gets disconnected. This prevents audio conflicts (two phones trying
-# to stream simultaneously) and keeps things simple for a single-speaker setup.
-#
-# How it works:
-#   - Every 2 seconds, poll bluetoothctl for the list of connected MAC addresses.
-#   - If the list changed AND there are now >1 devices connected:
-#     - Figure out which MAC is new (wasn't in the previous list).
-#     - Disconnect everything except the new one.
-#   - PREV_MACS tracks the last known state so we can diff.
-#
-# Edge case: if both devices connected simultaneously (both new), NEW_MAC will be
-# the last one iterated (sorted order). Acceptable — one gets kept either way.
+# Only one BT device at a time. When a second connects, the old one is disconnected.
 (
     PREV_MACS=""
     while true; do
@@ -208,8 +175,8 @@ kill -0 $BLUEALSA_PID 2>/dev/null || { echo "ERROR: bluealsad failed"; exit 1; }
                 if [ -n "$NEW_MAC" ]; then
                     for mac in $CURR_MACS; do
                         if [ "$mac" != "$NEW_MAC" ]; then
-                            echo "[SingleDevice] Disconnecting old device: $mac"
-                            bluetoothctl disconnect "$mac" 2>/dev/null || true
+                            log "Disconnecting old device $mac (replaced by $NEW_MAC)"
+                            bluetoothctl disconnect "$mac" &> /dev/null || true
                         fi
                     done
                 fi
@@ -220,87 +187,78 @@ kill -0 $BLUEALSA_PID 2>/dev/null || { echo "ERROR: bluealsad failed"; exit 1; }
     done
 ) &
 
-# ─── 6. Audio routing + TCP ─────────────────────────────────────────
-# This section wires up the complete audio pipeline:
-#   Phone → BlueZ → bluealsad → bluealsa-aplay → loopout (softvol) →
-#   hw:Loopback,0,0 → hw:Loopback,1,0 → loopin (dsnoop) →
-#   arecord → socat TCP:4953 → Snapserver
-echo "[6/7] Starting audio routing..."
+# ── Connection event logger ──
+# Watches D-Bus for connect/disconnect signals and logs them cleanly.
+(
+    dbus-monitor --system "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path_namespace=/org/bluez" 2>/dev/null | \
+    while read -r line; do
+        if echo "$line" | grep -q "path=/org/bluez/hci0/dev_"; then
+            DEV_PATH=$(echo "$line" | grep -o '/org/bluez/hci0/dev_[^ "]*')
+            DEV_MAC=$(echo "$DEV_PATH" | sed 's|.*/dev_||; s/_/:/g')
+        fi
+        if echo "$line" | grep -q 'string "Connected"'; then
+            read -r _type_line; read -r val_line
+            if echo "$val_line" | grep -q "boolean true"; then
+                DEV_NAME=$(bluetoothctl info "$DEV_MAC" 2>/dev/null | grep "Name:" | sed 's/.*Name: //')
+                log "Device connected: ${DEV_NAME:-unknown} ($DEV_MAC)"
+            elif echo "$val_line" | grep -q "boolean false"; then
+                log "Device disconnected: $DEV_MAC"
+            fi
+        fi
+    done
+) &
 
-# The softvol plugin ("loopout") creates a mixer control named "Bluetooth" on the
-# Loopback card, but ONLY after something first writes to it. Without this dummy
-# write, bluealsa-aplay would fail with "Mixer element not found" because the
-# control doesn't exist yet. We play 1 second of silence to force its creation.
+# ─── 6. Audio routing + TCP ─────────────────────────────────────────
+# Pipeline: bluealsa-aplay → loopout (softvol) → loopback → loopin (dsnoop) → TCP
+log "Starting audio routing..."
+
+# Initialize softvol mixer control with a dummy write (must happen before bluealsa-aplay)
 aplay -D loopout -d 1 /dev/zero 2>/dev/null || true
 sleep 1
-# Set initial volume to 100%. The phone will adjust it from there.
 amixer -c Loopback -q set 'Bluetooth' 100% 2>/dev/null || true
 
-# DRAIN PROCESS — critical for preventing disconnections.
-# The ALSA loopback has a fixed-size ring buffer. If bluealsa-aplay is writing BT
-# audio to side 0, but NOTHING is reading from side 1, the buffer fills up in ~30
-# seconds. Once full, bluealsa-aplay's write() blocks, it can't consume BT data
-# fast enough, bluealsad detects the stall, and the phone gets disconnected.
-# This arecord reads continuously from loopin and throws it away (/dev/null),
-# keeping the buffer drained so writes never block.
-# The TCP server (socat) also reads from loopin via dsnoop, but only when a Snapserver
-# client is connected. The drain ensures stability even with no TCP client.
+# Drain: continuously read loopback capture → /dev/null to prevent buffer stall
 arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw /dev/null 2>/dev/null &
 DRAIN_PID=$!
 
-# BLUEALSA-APLAY — the bridge between Bluetooth audio and ALSA.
-# Reads decoded PCM from bluealsad and writes it to "loopout" (softvol → loopback).
-#   -D loopout — output to our softvol device (which wraps hw:Loopback,0,0)
-#   --mixer-device=hw:Loopback — the ALSA card where the "Bluetooth" mixer control lives
-#   --mixer-control=Bluetooth — name of the softvol control to adjust for BT volume
-#   --single-audio — only play audio from one BT device at a time (matches single-device enforcer)
-# Without --mixer-device and --mixer-control, phone volume changes would be ignored.
-bluealsa-aplay -D loopout --mixer-device=hw:Loopback --mixer-control=Bluetooth --single-audio 2>&1 | sed 's/^/[bluealsa-aplay] /' &
+# bluealsa-aplay: reads BT audio → writes to loopout (softvol → loopback)
+if [ "$VERBOSE" = "true" ]; then
+    bluealsa-aplay -D loopout --mixer-device=hw:Loopback --mixer-control=Bluetooth --single-audio 2>&1 | sed 's/^/[bluealsa-aplay] /' &
+else
+    bluealsa-aplay -D loopout --mixer-device=hw:Loopback --mixer-control=Bluetooth --single-audio &> /dev/null &
+fi
 APLAY_PID=$!
 
-# TCP SERVER — Snapserver connects here to receive the audio stream.
-# socat listens on port 4953. When Snapserver connects (mode=client in its config),
-# socat spawns arecord which reads from loopin (loopback capture side via dsnoop)
-# and sends raw PCM (S16_LE, 44100Hz, stereo) over the TCP connection.
-# The while/sleep loop restarts socat after each client disconnects (Snapserver
-# reconnect). Without this loop, a single disconnect would kill the TCP server.
-# SYSTEM: (not EXEC:) is required because 2>/dev/null needs shell interpretation.
+# TCP server: Snapserver connects to port 4953 and receives raw PCM
 ( while true; do
-    socat TCP-LISTEN:4953,reuseaddr SYSTEM:"arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw 2>/dev/null"
+    socat TCP-LISTEN:4953,reuseaddr SYSTEM:"arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw 2>/dev/null" 2>/dev/null
     sleep 1
 done ) &
 TCP_PID=$!
 
 # ─── 7. Ready ───────────────────────────────────────────────────────
-echo "========================================="
-echo "Bluetooth receiver ready!"
-echo "Device: ${DEVICE_NAME} | TCP: port 4953"
-echo "========================================="
+log "========================================="
+log "Ready! Device: ${DEVICE_NAME} | TCP: 4953"
+log "========================================="
 
 # ─── Watchdog ────────────────────────────────────────────────────────
-# Every 10 seconds, check that all critical background processes are still alive.
-# If any died (crash, OOM, ALSA error), restart it with the same arguments.
-# Also re-enable discoverable mode if bluetoothd lost it (can happen after adapter reset).
-restart() { echo "WATCHDOG: $1 died, restarting..."; }
+# Every 10s: restart crashed processes, maintain discoverable, clean stale pairings.
 while true; do
-    kill -0 $BLUETOOTHD_PID 2>/dev/null || { restart bluetoothd; /usr/libexec/bluetooth/bluetoothd -d & BLUETOOTHD_PID=$!; }
-    kill -0 $BLUEALSA_PID  2>/dev/null || { restart bluealsad; bluealsad --profile=a2dp-sink & BLUEALSA_PID=$!; }
-    kill -0 $APLAY_PID     2>/dev/null || { restart bluealsa-aplay; bluealsa-aplay -D loopout --mixer-device=hw:Loopback --mixer-control=Bluetooth --single-audio 2>&1 | sed 's/^/[bluealsa-aplay] /' & APLAY_PID=$!; }
-    kill -0 $DRAIN_PID     2>/dev/null || { restart drain; arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw /dev/null 2>/dev/null & DRAIN_PID=$!; }
-    kill -0 $TCP_PID       2>/dev/null || { restart tcp; ( while true; do socat TCP-LISTEN:4953,reuseaddr SYSTEM:"arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw 2>/dev/null"; sleep 1; done ) & TCP_PID=$!; }
+    kill -0 $BLUETOOTHD_PID 2>/dev/null || { log "Restarting bluetoothd";      /usr/libexec/bluetooth/bluetoothd &> "$VOUT" & BLUETOOTHD_PID=$!; }
+    kill -0 $BLUEALSA_PID  2>/dev/null || { log "Restarting bluealsad";        bluealsad --profile=a2dp-sink &> "$VOUT" & BLUEALSA_PID=$!; }
+    kill -0 $APLAY_PID     2>/dev/null || { log "Restarting bluealsa-aplay";   bluealsa-aplay -D loopout --mixer-device=hw:Loopback --mixer-control=Bluetooth --single-audio &> "$VOUT" & APLAY_PID=$!; }
+    kill -0 $DRAIN_PID     2>/dev/null || { logv "Restarting drain";           arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw /dev/null 2>/dev/null & DRAIN_PID=$!; }
+    kill -0 $TCP_PID       2>/dev/null || { log "Restarting TCP server";       ( while true; do socat TCP-LISTEN:4953,reuseaddr SYSTEM:"arecord -D loopin -f S16_LE -r 44100 -c 2 -t raw 2>/dev/null" 2>/dev/null; sleep 1; done ) & TCP_PID=$!; }
 
-    # BlueZ can lose discoverable state after certain events (adapter reset, D-Bus
-    # reconnect). This ensures phones can always find the device.
-    bluetoothctl show 2>/dev/null | grep -q "Discoverable: yes" || bluetoothctl discoverable on 2>/dev/null || true
+    bluetoothctl show 2>/dev/null | grep -q "Discoverable: yes" || { logv "Re-enabling discoverable"; bluetoothctl discoverable on &> /dev/null || true; }
 
-    # Clean up stale pairing keys. When a phone "forgets" this device, the Pi still
-    # has the old keys. On next scan, BlueZ tries to authenticate with the dead keys
-    # which silently fails, making the device invisible to that phone.
-    # Fix: every 10s, remove any paired device that isn't currently connected.
-    # Re-pairing is seamless because the expect agent auto-accepts everything.
+    # Remove paired-but-disconnected devices (stale keys block re-pairing)
     CONNECTED=$(bluetoothctl devices Connected 2>/dev/null | awk '{print $2}')
     for dev in $(bluetoothctl devices Paired 2>/dev/null | awk '{print $2}'); do
-        echo "$CONNECTED" | grep -q "$dev" || bluetoothctl remove "$dev" 2>/dev/null || true
+        if ! echo "$CONNECTED" | grep -q "$dev"; then
+            logv "Removing stale pairing: $dev"
+            bluetoothctl remove "$dev" &> /dev/null || true
+        fi
     done
 
     sleep 10

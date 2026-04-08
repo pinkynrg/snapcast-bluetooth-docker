@@ -9,6 +9,7 @@ services:
       - bluetooth-data:/var/lib/bluetooth
     environment:
       - DEVICE_NAME=Snapcast Receiver
+      - VERBOSE=false
     restart: always
 
 volumes:
