@@ -56,17 +56,28 @@ else
 fi
 
 # softvol "loopout": wraps hw:Loopback with a "Bluetooth" mixer for phone volume control
+# plug "loopout_plug": resamples any input rate (e.g. 48kHz from Mac) to 44100 for the loopback
 # dsnoop "loopin": lets drain + TCP server share the capture side simultaneously
 cat > /etc/asound.conf << 'EOF'
 pcm.loopout {
     type softvol
-    slave.pcm "hw:Loopback,0,0"
+    slave.pcm "loopout_plug"
     control {
         name "Bluetooth"
         card Loopback
     }
     min_dB -51.0
     max_dB 0.0
+}
+
+pcm.loopout_plug {
+    type plug
+    slave {
+        pcm "hw:Loopback,0,0"
+        format S16_LE
+        rate 44100
+        channels 2
+    }
 }
 
 pcm.loopin {
@@ -161,21 +172,40 @@ kill -0 $BLUEALSA_PID 2>/dev/null || { log "ERROR: bluealsad failed to start"; e
 
 # ── Single-device enforcer ──
 # Only one BT device at a time. When a second connects, the old one is disconnected.
+# Also logs every connection change.
+get_dev_name() { bluetoothctl info "$1" 2>/dev/null | grep "Name:" | sed 's/.*Name: //' ; }
 (
     PREV_MACS=""
     while true; do
-        CURR_MACS=$(bluetoothctl devices Connected 2>/dev/null | awk '{print $2}' | sort)
-        if [ "$CURR_MACS" != "$PREV_MACS" ] && [ -n "$CURR_MACS" ]; then
-            COUNT=$(echo "$CURR_MACS" | wc -w)
+        CURR_MACS=$(bluetoothctl devices Connected 2>/dev/null | awk '{print $2}' | grep -E '^([0-9A-F]{2}:){5}[0-9A-F]{2}$' | sort)
+        if [ "$CURR_MACS" != "$PREV_MACS" ]; then
+            # Log new connections
+            for mac in $CURR_MACS; do
+                if [ -z "$PREV_MACS" ] || ! echo "$PREV_MACS" | grep -q "$mac"; then
+                    NAME=$(get_dev_name "$mac")
+                    log "Device connected: ${NAME:-$mac}"
+                fi
+            done
+            # Log disconnections
+            for mac in $PREV_MACS; do
+                if [ -z "$CURR_MACS" ] || ! echo "$CURR_MACS" | grep -q "$mac"; then
+                    NAME=$(get_dev_name "$mac")
+                    log "Device disconnected: ${NAME:-$mac}"
+                fi
+            done
+            # Evict old device if two are connected
+            COUNT=$(echo "$CURR_MACS" | grep -c . 2>/dev/null || true)
             if [ "$COUNT" -gt 1 ]; then
                 NEW_MAC=""
                 for mac in $CURR_MACS; do
                     echo "$PREV_MACS" | grep -q "$mac" || NEW_MAC="$mac"
                 done
                 if [ -n "$NEW_MAC" ]; then
+                    NEW_NAME=$(get_dev_name "$NEW_MAC")
                     for mac in $CURR_MACS; do
                         if [ "$mac" != "$NEW_MAC" ]; then
-                            log "Disconnecting old device $mac (replaced by $NEW_MAC)"
+                            OLD_NAME=$(get_dev_name "$mac")
+                            log "Evicting ${OLD_NAME:-$mac} (replaced by ${NEW_NAME:-$NEW_MAC})"
                             bluetoothctl disconnect "$mac" &> /dev/null || true
                         fi
                     done
@@ -184,27 +214,6 @@ kill -0 $BLUEALSA_PID 2>/dev/null || { log "ERROR: bluealsad failed to start"; e
             PREV_MACS="$CURR_MACS"
         fi
         sleep 2
-    done
-) &
-
-# ── Connection event logger ──
-# Watches D-Bus for connect/disconnect signals and logs them cleanly.
-(
-    dbus-monitor --system "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path_namespace=/org/bluez" 2>/dev/null | \
-    while read -r line; do
-        if echo "$line" | grep -q "path=/org/bluez/hci0/dev_"; then
-            DEV_PATH=$(echo "$line" | grep -o '/org/bluez/hci0/dev_[^ "]*')
-            DEV_MAC=$(echo "$DEV_PATH" | sed 's|.*/dev_||; s/_/:/g')
-        fi
-        if echo "$line" | grep -q 'string "Connected"'; then
-            read -r _type_line; read -r val_line
-            if echo "$val_line" | grep -q "boolean true"; then
-                DEV_NAME=$(bluetoothctl info "$DEV_MAC" 2>/dev/null | grep "Name:" | sed 's/.*Name: //')
-                log "Device connected: ${DEV_NAME:-unknown} ($DEV_MAC)"
-            elif echo "$val_line" | grep -q "boolean false"; then
-                log "Device disconnected: $DEV_MAC"
-            fi
-        fi
     done
 ) &
 
