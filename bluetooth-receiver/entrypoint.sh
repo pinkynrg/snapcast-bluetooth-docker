@@ -227,11 +227,34 @@ cat > /etc/pulse/custom.pa << 'EOF'
 load-module module-native-protocol-unix auth-anonymous=1
 load-module module-null-sink sink_name=tcp_out rate=44100 channels=2
 load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 source=tcp_out.monitor port=4953 listen=0.0.0.0 record=true
-load-module module-bluetooth-policy auto_switch=false
+# Disable automatic routing to prevent race condition with Bluetooth sources
+load-module module-bluetooth-policy auto_switch=false connect=false
 load-module module-bluetooth-discover headset=ofono
 set-default-sink tcp_out
 set-default-source tcp_out.monitor
 EOF
+
+# Create script to automatically route Bluetooth sources when they become available
+cat > /usr/local/bin/bt-audio-router.sh << 'ROUTEREOF'
+#!/bin/bash
+# Monitor for new Bluetooth A2DP sources and route them to tcp_out via loopback
+# This runs AFTER the source is fully initialized, avoiding race conditions
+pacmd subscribe 2>/dev/null | while read -r event; do
+    if echo "$event" | grep -q "'new' on source"; then
+        # Give the source time to fully initialize
+        sleep 1
+        # Find all Bluetooth A2DP sources
+        for source in $(pacmd list-sources | grep -A1 "bluez_source.*a2dp" | grep "name:" | cut -d'<' -f2 | cut -d'>' -f1); do
+            # Check if loopback already exists for this source
+            if ! pacmd list-source-outputs | grep -q "source = <$source>"; then
+                echo "[BT-Router] Creating loopback for $source"
+                pacmd load-module module-loopback source="$source" sink=tcp_out source_dont_move=true sink_input_properties="media.role=music" adjust_time=5 latency_msec=500 2>/dev/null
+            fi
+        done
+    fi
+done
+ROUTEREOF
+chmod +x /usr/local/bin/bt-audio-router.sh
 
 cat > /etc/pulse/daemon.conf << 'EOF'
 daemonize = no
@@ -260,6 +283,11 @@ done &
 PA_TAIL_PID=$!
 
 sleep 3
+
+# Start Bluetooth audio router to handle source→sink routing after sources are ready
+/usr/local/bin/bt-audio-router.sh &
+BT_ROUTER_PID=$!
+echo "Bluetooth audio router started (PID: $BT_ROUTER_PID)"
 
 # ─── 10. READY ──────────────────────────────────────────────────────
 echo "====================================="
@@ -297,6 +325,12 @@ while true; do
         echo "WATCHDOG: Monitor died, restarting..."
         /usr/local/bin/bt-monitor.sh &
         MONITOR_PID=$!
+    fi
+
+    if ! kill -0 $BT_ROUTER_PID 2>/dev/null; then
+        echo "WATCHDOG: Bluetooth audio router died, restarting..."
+        /usr/local/bin/bt-audio-router.sh &
+        BT_ROUTER_PID=$!
     fi
 
     # Re-enable discoverable if it turned off (BlueZ can silently disable it after disconnect)
