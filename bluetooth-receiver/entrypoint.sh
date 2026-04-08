@@ -217,6 +217,20 @@ get_dev_name() { bluetoothctl info "$1" 2>/dev/null | grep "Name:" | sed 's/.*Na
     done
 ) &
 
+# ── Volume monitor ──
+# Polls the softvol "Bluetooth" mixer and logs when volume changes.
+(
+    PREV_VOL=""
+    while true; do
+        CURR_VOL=$(amixer -c Loopback sget 'Bluetooth' 2>/dev/null | grep -o '[0-9]*%' | head -1)
+        if [ -n "$CURR_VOL" ] && [ "$CURR_VOL" != "$PREV_VOL" ]; then
+            [ -n "$PREV_VOL" ] && log "Volume changed: $CURR_VOL"
+            PREV_VOL="$CURR_VOL"
+        fi
+        sleep 2
+    done
+) &
+
 # ─── 6. Audio routing + TCP ─────────────────────────────────────────
 # Pipeline: bluealsa-aplay → loopout (softvol) → loopback → loopin (dsnoop) → TCP
 log "Starting audio routing..."
