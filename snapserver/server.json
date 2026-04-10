@@ -10,79 +10,79 @@
                         "name": "",
                         "volume": {
                             "muted": false,
-                            "percent": 14
-                        }
-                    },
-                    "connected": true,
-                    "host": {
-                        "arch": "aarch64",
-                        "ip": "::ffff:192.168.1.102",
-                        "mac": "8a:19:aa:15:8f:0f",
-                        "name": "partybag-bedroom-speaker",
-                        "os": "Debian GNU/Linux 12 (bookworm)"
-                    },
-                    "id": "partybag-bedroom-speaker",
-                    "lastSeen": {
-                        "sec": 1775691045,
-                        "usec": 986194
-                    },
-                    "snapclient": {
-                        "name": "Snapclient",
-                        "protocolVersion": 2,
-                        "version": "0.34.0"
-                    }
-                },
-                {
-                    "config": {
-                        "instance": 1,
-                        "latency": 0,
-                        "name": "",
-                        "volume": {
-                            "muted": false,
-                            "percent": 14
-                        }
-                    },
-                    "connected": true,
-                    "host": {
-                        "arch": "aarch64",
-                        "ip": "::ffff:192.168.1.103",
-                        "mac": "de:b4:5f:6c:d2:20",
-                        "name": "speaker-bathroom",
-                        "os": "Debian GNU/Linux 12 (bookworm)"
-                    },
-                    "id": "speaker-bathroom",
-                    "lastSeen": {
-                        "sec": 1775691045,
-                        "usec": 889911
-                    },
-                    "snapclient": {
-                        "name": "Snapclient",
-                        "protocolVersion": 2,
-                        "version": "0.34.0"
-                    }
-                },
-                {
-                    "config": {
-                        "instance": 1,
-                        "latency": 0,
-                        "name": "",
-                        "volume": {
-                            "muted": false,
-                            "percent": 14
+                            "percent": 50
                         }
                     },
                     "connected": true,
                     "host": {
                         "arch": "aarch64",
                         "ip": "::ffff:192.168.1.101",
-                        "mac": "9e:d0:a6:9d:85:4d",
-                        "name": "partybag-livingroom-speaker",
+                        "mac": "f6:f4:c8:38:94:cd",
+                        "name": "livingroom",
                         "os": "Debian GNU/Linux 12 (bookworm)"
                     },
-                    "id": "partybag-livingroom-speaker",
+                    "id": "livingroom",
                     "lastSeen": {
-                        "sec": 1775691046,
-                        "usec": 385879
+                        "sec": 1775810229,
+                        "usec": 658733
+                    },
+                    "snapclient": {
+                        "name": "Snapclient",
+                        "protocolVersion": 2,
+                        "version": "0.34.0"
+                    }
+                },
+                {
+                    "config": {
+                        "instance": 1,
+                        "latency": 0,
+                        "name": "",
+                        "volume": {
+                            "muted": false,
+                            "percent": 50
+                        }
+                    },
+                    "connected": true,
+                    "host": {
+                        "arch": "aarch64",
+                        "ip": "::ffff:192.168.1.103",
+                        "mac": "32:ff:ed:04:ee:15",
+                        "name": "bathroom",
+                        "os": "Debian GNU/Linux 12 (bookworm)"
+                    },
+                    "id": "bathroom",
+                    "lastSeen": {
+                        "sec": 1775810229,
+                        "usec": 238643
+                    },
+                    "snapclient": {
+                        "name": "Snapclient",
+                        "protocolVersion": 2,
+                        "version": "0.34.0"
+                    }
+                },
+                {
+                    "config": {
+                        "instance": 1,
+                        "latency": 0,
+                        "name": "",
+                        "volume": {
+                            "muted": false,
+                            "percent": 50
+                        }
+                    },
+                    "connected": true,
+                    "host": {
+                        "arch": "aarch64",
+                        "ip": "::ffff:192.168.1.102",
+                        "mac": "5e:92:ba:0e:06:07",
+                        "name": "bedroom",
+                        "os": "Debian GNU/Linux 12 (bookworm)"
+                    },
+                    "id": "bedroom",
+                    "lastSeen": {
+                        "sec": 1775810228,
+                        "usec": 917490
                     },
                     "snapclient": {
                         "name": "Snapclient",
@@ -91,10 +91,10 @@
                     }
                 }
             ],
-            "id": "c8a2a548-3976-2db2-20fe-b1ee79fe5085",
+            "id": "1757c00f-81e9-97ee-cb4f-6279b899f5f9",
             "muted": false,
-            "name": "",
-            "stream_id": "Bluetooth"
+            "name": "All Speakers",
+            "stream_id": "Radio Birikina"
         }
     ]
 }
